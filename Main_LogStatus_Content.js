@@ -1,10 +1,10 @@
-var $j = jQuery.noConflict(); //avoid conflicts on John's fork (state.js)
 var timeoutsenabled = true;
 
 var clockinterval;
 var bootinterval;
 
-function showclock(){
+function showclock()
+{
 	JS_timeObj.setTime(systime_millsec);
 	systime_millsec += 1000;
 	JS_timeObj2 = JS_timeObj.toString();
@@ -55,11 +55,11 @@ function SetCookie(cookiename,cookievalue){
 	cookie.set('uiscribe_'+cookiename,cookievalue,10*365);
 }
 
-$j.fn.serializeObject = function(){
+$.fn.serializeObject = function(){
 	var o = custom_settings;
 	
 	var logsenabled = [];
-	$j.each($j('input[name="uiscribe_log_enabled"]:checked'),function(){
+	$.each($('input[name="uiscribe_log_enabled"]:checked'),function(){
 		logsenabled.push(this.value);
 	});
 	var logsenabledstring = logsenabled.join(',');
@@ -88,10 +88,10 @@ function initial(){
 function ScriptUpdateLayout(){
 	var localver = GetVersionNumber('local');
 	var serverver = GetVersionNumber('server');
-	$j('#uiscribe_version_local').text(localver);
+	$('#uiscribe_version_local').text(localver);
 	
 	if(localver != serverver && serverver != 'N/A'){
-		$j('#uiscribe_version_server').text('Updated version available: '+serverver);
+		$('#uiscribe_version_server').text('Updated version available: '+serverver);
 		showhide('btnChkUpdate',false);
 		showhide('uiscribe_version_server',true);
 		showhide('btnDoUpdate',true);
@@ -104,7 +104,7 @@ function reload(){
 
 function get_logfile(filename){
 	var filenamesafe = filename.replace('.log','');
-	$j.ajax({
+	$.ajax({
 		url: '/ext/uiScribe/'+filename+'.htm',
 		dataType: 'text',
 		timeout: 3000,
@@ -119,7 +119,7 @@ function get_logfile(filename){
 					if(data.length > 0){
 						document.getElementById('log_'+filename.substring(0,filename.indexOf('.'))).innerHTML = data;
 						if(document.getElementById('auto_scroll').checked){
-							$j('#log_'+filename.substring(0,filename.indexOf('.'))).scrollTop(9999999);
+							$('#log_'+filename.substring(0,filename.indexOf('.'))).scrollTop(9999999);
 						}
 					}
 				}
@@ -127,7 +127,7 @@ function get_logfile(filename){
 					if(data.length > 0){
 						document.getElementById('log_'+filename).innerHTML = data;
 						if(document.getElementById('auto_scroll').checked){
-							$j('#log_'+filename).scrollTop(9999999);
+							$('#log_'+filename).scrollTop(9999999);
 						}
 					}
 				}
@@ -138,7 +138,7 @@ function get_logfile(filename){
 }
 
 function get_conf_file(){
-	$j.ajax({
+	$.ajax({
 		url: '/ext/uiScribe/logs.htm',
 		timeout: 2000,
 		dataType: 'text',
@@ -174,7 +174,7 @@ function get_conf_file(){
 			logconfigtablehtml += '<td colspan="2" style="background-color:rgb(77,89,93);">';
 			logconfigtablehtml += '<input type="button" onclick="SaveConfig();" value="Save" class="button_gen" name="button">';
 			logconfigtablehtml += '</td></tr>';
-			$j('#table_config').append(logconfigtablehtml);
+			$('#table_config').append(logconfigtablehtml);
 			logs.reverse();
 			
 			for(var i = 0; i < logs.length; i++){
@@ -183,7 +183,7 @@ function get_conf_file(){
 					continue
 				}
 				filename=logs[i].substring(logs[i].lastIndexOf('/')+1);
-				$j('#table_messages').after(BuildLogTable(filename));
+				$('#table_messages').after(BuildLogTable(filename));
 			}
 			
 			AddEventHandlers();
@@ -192,12 +192,12 @@ function get_conf_file(){
 }
 
 function DownloadAllLogFile(){
-	$j('.btndownload').each(function(index){$j(this).trigger('click');});
+	$('.btndownload').each(function(index){$(this).trigger('click');});
 }
 
 function DownloadLogFile(btnlog){
-	$j(btnlog).prop('disabled',true);
-	$j(btnlog).addClass('btndisabled');
+	$(btnlog).prop('disabled',true);
+	$(btnlog).addClass('btndisabled');
 	var filepath = '';
 	if(btnlog.name == 'btnmessages'){
 		filepath='/ext/uiScribe/messages.htm';
@@ -214,18 +214,18 @@ function DownloadLogFile(btnlog){
 		document.body.appendChild(a);
 		a.click();
 		window.URL.revokeObjectURL(url);
-		$j(btnlog).prop('disabled',false);
-		$j(btnlog).removeClass('btndisabled');
+		$(btnlog).prop('disabled',false);
+		$(btnlog).removeClass('btndisabled');
 	})
 	.catch(() => {
 		console.log('File download failed!');
-		$j(btnlog).prop('disabled',false);
-		$j(btnlog).removeClass('btndisabled');
+		$(btnlog).prop('disabled',false);
+		$(btnlog).removeClass('btndisabled');
 	});
 }
 
 function update_status(){
-	$j.ajax({
+	$.ajax({
 		url: '/ext/uiScribe/detect_update.js',
 		dataType: 'script',
 		timeout: 3000,
@@ -240,12 +240,12 @@ function update_status(){
 				document.getElementById('imgChkUpdate').style.display = 'none';
 				showhide('uiscribe_version_server',true);
 				if(updatestatus != 'None'){
-					$j('#uiscribe_version_server').text('Updated version available: '+updatestatus);
+					$('#uiscribe_version_server').text('Updated version available: '+updatestatus);
 					showhide('btnChkUpdate',false);
 					showhide('btnDoUpdate',true);
 				}
 				else{
-					$j('#uiscribe_version_server').text('No update available');
+					$('#uiscribe_version_server').text('No update available');
 					showhide('btnChkUpdate',true);
 					showhide('btnDoUpdate',false);
 				}
@@ -270,7 +270,7 @@ function DoUpdate(){
 }
 
 function SaveConfig(){
-	document.getElementById('amng_custom').value = JSON.stringify($j('config_form').serializeObject());
+	document.getElementById('amng_custom').value = JSON.stringify($('config_form').serializeObject());
 	document.config_form.action_script.value = 'start_uiScribeconfig';
 	document.config_form.action_wait.value = 5;
 	showLoading();
@@ -309,13 +309,13 @@ function BuildLogTable(name){
 }
 
 function AddEventHandlers(){
-	$j('.collapsible-jquery').off('click').on('click',function(){
-		var filename = $j(this).prop('id').replace('thead_','');
+	$('.collapsible-jquery').off('click').on('click',function(){
+		var filename = $(this).prop('id').replace('thead_','');
 		if(filename != 'messages'){
 			filename += '.log';
 		}
 		var filenamesafe = filename.replace('.log','');
-		if($j(this).siblings().is(':hidden') == true){
+		if($(this).siblings().is(':hidden') == true){
 			window['timeoutenabled_'+filenamesafe] = true;
 			get_logfile(filename);
 		}
@@ -323,60 +323,60 @@ function AddEventHandlers(){
 			clearTimeout(window['timeout_'+filenamesafe]);
 			window['timeoutenabled_'+filenamesafe] = false;
 		}
-		$j(this).siblings().toggle('fast');
+		$(this).siblings().toggle('fast');
 	});
 	
 	ResizeAll('hide');
 	
-	$j('#thead_messages').trigger('click');
+	$('#thead_messages').trigger('click');
 	
-	$j('.collapsible-jquery-config').off('click').on('click',function(){
-		$j(this).siblings().toggle('fast',function(){
-			if($j(this).css('display') == 'none'){
-				SetCookie($j(this).siblings()[0].id,'collapsed');
+	$('.collapsible-jquery-config').off('click').on('click',function(){
+		$(this).siblings().toggle('fast',function(){
+			if($(this).css('display') == 'none'){
+				SetCookie($(this).siblings()[0].id,'collapsed');
 			}
 			else{
-				SetCookie($j(this).siblings()[0].id,'expanded');
+				SetCookie($(this).siblings()[0].id,'expanded');
 			}
 		})
 	});
 	
-	$j('.collapsible-jquery-config').each(function(index,element){
-		if(GetCookie($j(this)[0].id,'string') == 'collapsed'){
-			$j(this).siblings().toggle(false);
+	$('.collapsible-jquery-config').each(function(index,element){
+		if(GetCookie($(this)[0].id,'string') == 'collapsed'){
+			$(this).siblings().toggle(false);
 		}
 		else{
-			$j(this).siblings().toggle(true);
+			$(this).siblings().toggle(true);
 		}
 	});
 }
 
 function ToggleRefresh(){
-	if($j('#auto_refresh').prop('checked') == true){
-		$j('#auto_scroll').prop('disabled',false)
+	if($('#auto_refresh').prop('checked') == true){
+		$('#auto_scroll').prop('disabled',false)
 		timeoutsenabled=true;
 		
-		$j('.collapsible-jquery').each(function(index,element){
-			var filename = $j(this).prop('id').replace('thead_','');
+		$('.collapsible-jquery').each(function(index,element){
+			var filename = $(this).prop('id').replace('thead_','');
 			if(filename != 'messages'){
 				filename += '.log';
 			}
-			if($j(this).siblings().is(':hidden') == false){
+			if($(this).siblings().is(':hidden') == false){
 				get_logfile(filename);
 			}
 		});
 	}
 	else{
-		$j('#auto_scroll').prop('disabled',true)
+		$('#auto_scroll').prop('disabled',true)
 		timeoutsenabled=false;
 	}
 }
 
 function ResizeAll(action){
-	$j('.collapsible-jquery').each(function(index,element){
+	$('.collapsible-jquery').each(function(index,element){
 		if(action == 'show'){
-			$j(this).siblings().toggle(true);
-			var filename = $j(this).prop('id').replace('thead_','');
+			$(this).siblings().toggle(true);
+			var filename = $(this).prop('id').replace('thead_','');
 			window['timeoutenabled_'+filename] = true;
 			if(filename != 'messages'){
 				filename += '.log';
@@ -384,8 +384,8 @@ function ResizeAll(action){
 			get_logfile(filename);
 		}
 		else{
-			$j(this).siblings().toggle(false);
-			var filename = $j(this).prop('id').replace('thead_','');
+			$(this).siblings().toggle(false);
+			var filename = $(this).prop('id').replace('thead_','');
 			window['timeoutenabled_'+filename] = false;
 			clearTimeout(window['timeout_'+filename]);
 		}
