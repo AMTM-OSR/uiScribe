@@ -9,10 +9,11 @@
 ##   | |_| || | ____) || (__ | |   | || |_) ||  __/   ##
 ##    \__,_||_||_____/  \___||_|   |_||_.__/  \___|   ##
 ##                                                    ##
-##         https://github.com/jackyaz/uiScribe        ##
+##      https://github.com/AMTM-OSR/uiScribe          ##
+##  Forked from https://github.com/jackyaz/uiScribe   ##
 ##                                                    ##
 ########################################################
-# Last Modified: 2024-Jul-22
+# Last Modified: 2025-Jun-09
 #-------------------------------------------------------
 
 ###########        Shellcheck directives      ##########
@@ -26,14 +27,14 @@
 
 ### Start of script variables ###
 readonly SCRIPT_NAME="uiScribe"
-readonly SCRIPT_VERSION="v1.4.6"
-SCRIPT_BRANCH="develop"
-SCRIPT_REPO="https://raw.githubusercontent.com/jackyaz/$SCRIPT_NAME/$SCRIPT_BRANCH"
+readonly SCRIPT_VERSION="v1.4.7"
+SCRIPT_BRANCH="master"
+SCRIPT_REPO="https://raw.githubusercontent.com/AMTM-OSR/$SCRIPT_NAME/$SCRIPT_BRANCH"
 readonly SCRIPT_DIR="/jffs/addons/$SCRIPT_NAME.d"
 readonly SCRIPT_PAGE_DIR="$(readlink /www/user)"
 readonly SCRIPT_WEB_DIR="$SCRIPT_PAGE_DIR/$SCRIPT_NAME"
 readonly SHARED_DIR="/jffs/addons/shared-jy"
-readonly SHARED_REPO="https://raw.githubusercontent.com/jackyaz/shared-jy/master"
+readonly SHARED_REPO="https://raw.githubusercontent.com/AMTM-OSR/shared-jy/master"
 readonly SHARED_WEB_DIR="$SCRIPT_PAGE_DIR/shared-jy"
 [ -z "$(nvram get odmpid)" ] && ROUTER_MODEL="$(nvram get productid)" || ROUTER_MODEL="$(nvram get odmpid)"
 ### End of script variables ###
@@ -556,7 +557,8 @@ ScriptHeader(){
 	printf "${BOLD}##                                                    ##${CLEARFORMAT}\\n"
 	printf "${BOLD}##                 %s on %-9s                ##${CLEARFORMAT}\\n" "$SCRIPT_VERSION" "$ROUTER_MODEL"
 	printf "${BOLD}##                                                    ##${CLEARFORMAT}\\n"
-	printf "${BOLD}##         https://github.com/jackyaz/%s        ##${CLEARFORMAT}\\n" "$SCRIPT_NAME"
+	printf "${BOLD}##        https://github.com/AMTM-OSR/spdMerlin       ##${CLEARFORMAT}\\n"
+	printf "${BOLD}##  Forked from https://github.com/jackyaz/spdMerlin  ##${CLEARFORMAT}\\n"
 	printf "${BOLD}##                                                    ##${CLEARFORMAT}\\n"
 	printf "${BOLD}########################################################${CLEARFORMAT}\\n"
 	printf "\\n"
@@ -806,7 +808,7 @@ License
 Help & Support
   https://www.snbforums.com/forums/asuswrt-merlin-addons.60/?prefix_id=24
 Source code
-  https://github.com/jackyaz/$SCRIPT_NAME
+  https://github.com/AMTM-OSR/$SCRIPT_NAME
 EOF
 	printf "\\n"
 }
@@ -907,13 +909,13 @@ case "$1" in
 	;;
 	develop)
 		SCRIPT_BRANCH="develop"
-		SCRIPT_REPO="https://raw.githubusercontent.com/jackyaz/$SCRIPT_NAME/$SCRIPT_BRANCH"
+		SCRIPT_REPO="https://raw.githubusercontent.com/AMTM-OSR/$SCRIPT_NAME/$SCRIPT_BRANCH"
 		Update_Version force
 		exit 0
 	;;
 	stable)
 		SCRIPT_BRANCH="master"
-		SCRIPT_REPO="https://raw.githubusercontent.com/jackyaz/$SCRIPT_NAME/$SCRIPT_BRANCH"
+		SCRIPT_REPO="https://raw.githubusercontent.com/AMTM-OSR/$SCRIPT_NAME/$SCRIPT_BRANCH"
 		Update_Version force
 		exit 0
 	;;
