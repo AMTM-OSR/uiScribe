@@ -9,11 +9,11 @@
 ##   | |_| || | ____) || (__ | |   | || |_) ||  __/   ##
 ##    \__,_||_||_____/  \___||_|   |_||_.__/  \___|   ##
 ##                                                    ##
-##      https://github.com/AMTM-OSR/uiScribe          ##
+##        https://github.com/AMTM-OSR/uiScribe        ##
 ##  Forked from https://github.com/jackyaz/uiScribe   ##
 ##                                                    ##
 ########################################################
-# Last Modified: 2025-Jun-09
+# Last Modified: 2025-Jun-10
 #-------------------------------------------------------
 
 ###########        Shellcheck directives      ##########
@@ -23,20 +23,30 @@
 # shellcheck disable=SC2019
 # shellcheck disable=SC2059
 # shellcheck disable=SC2155
+# shellcheck disable=SC3043
+# shellcheck disable=SC3045
 ########################################################
 
 ### Start of script variables ###
 readonly SCRIPT_NAME="uiScribe"
 readonly SCRIPT_VERSION="v1.4.7"
+readonly SCRIPT_VERSTAG="25061012"
 SCRIPT_BRANCH="master"
 SCRIPT_REPO="https://raw.githubusercontent.com/AMTM-OSR/$SCRIPT_NAME/$SCRIPT_BRANCH"
 readonly SCRIPT_DIR="/jffs/addons/$SCRIPT_NAME.d"
-readonly SCRIPT_PAGE_DIR="$(readlink /www/user)"
+readonly SCRIPT_PAGE_DIR="$(readlink -f /www/user)"
 readonly SCRIPT_WEB_DIR="$SCRIPT_PAGE_DIR/$SCRIPT_NAME"
 readonly SHARED_DIR="/jffs/addons/shared-jy"
 readonly SHARED_REPO="https://raw.githubusercontent.com/AMTM-OSR/shared-jy/master"
 readonly SHARED_WEB_DIR="$SCRIPT_PAGE_DIR/shared-jy"
 [ -z "$(nvram get odmpid)" ] && ROUTER_MODEL="$(nvram get productid)" || ROUTER_MODEL="$(nvram get odmpid)"
+
+##-------------------------------------##
+## Added by Martinski W. [2025-Jun-09] ##
+##-------------------------------------##
+readonly scriptVersRegExp="v[0-9]{1,2}([.][0-9]{1,2})([.][0-9]{1,2})"
+readonly scriptVERINFO="[${SCRIPT_VERSION}_${SCRIPT_VERSTAG}, Branch: $SCRIPT_BRANCH]"
+
 ### End of script variables ###
 
 ### Start of output format variables ###
@@ -49,15 +59,36 @@ readonly SETTING="${BOLD}\\e[36m"
 readonly CLEARFORMAT="\\e[0m"
 ### End of output format variables ###
 
+# Give priority to built-in binaries #
+export PATH="/bin:/usr/bin:/sbin:/usr/sbin:$PATH"
+
+##----------------------------------------##
+## Modified by Martinski W. [2025-Jun-09] ##
+##----------------------------------------##
 # $1 = print to syslog, $2 = message to print, $3 = log level
-Print_Output(){
-	if [ "$1" = "true" ]; then
-		logger -t "$SCRIPT_NAME" "$2"
+Print_Output()
+{
+	local prioStr  prioNum
+	if [ $# -gt 2 ] && [ -n "$3" ]
+	then prioStr="$3"
+	else prioStr="NOTICE"
 	fi
-	printf "${BOLD}${3}%s${CLEARFORMAT}\\n\\n" "$2"
+	if [ "$1" = "true" ]
+	then
+		case "$prioStr" in
+		    "$CRIT") prioNum=2 ;;
+		     "$ERR") prioNum=3 ;;
+		    "$WARN") prioNum=4 ;;
+		    "$PASS") prioNum=6 ;; #INFO#
+		          *) prioNum=5 ;; #NOTICE#
+		esac
+		logger -t "$SCRIPT_NAME" -p $prioNum "$2"
+	fi
+	printf "${BOLD}${3}%s${CLEARFORMAT}\n\n" "$2"
 }
 
-Firmware_Version_Check(){
+Firmware_Version_Check()
+{
 	if nvram get rc_support | grep -qF "am_addons"; then
 		return 0
 	else
@@ -66,8 +97,10 @@ Firmware_Version_Check(){
 }
 
 ### Code for these functions inspired by https://github.com/Adamm00 - credit to @Adamm ###
-Check_Lock(){
-	if [ -f "/tmp/$SCRIPT_NAME.lock" ]; then
+Check_Lock()
+{
+	if [ -f "/tmp/$SCRIPT_NAME.lock" ]
+	then
 		ageoflock=$(($(date +%s) - $(date +%s -r /tmp/$SCRIPT_NAME.lock)))
 		if [ "$ageoflock" -gt 600 ]; then
 			Print_Output true "Stale lock file found (>600 seconds old) - purging lock" "$ERR"
@@ -93,16 +126,22 @@ Clear_Lock(){
 	rm -f "/tmp/$SCRIPT_NAME.lock" 2>/dev/null
 	return 0
 }
-############################################################################
 
-Set_Version_Custom_Settings(){
+##----------------------------------------##
+## Modified by Martinski W. [2025-Jun-09] ##
+##----------------------------------------##
+Set_Version_Custom_Settings()
+{
 	SETTINGSFILE="/jffs/addons/custom_settings.txt"
 	case "$1" in
 		local)
-			if [ -f "$SETTINGSFILE" ]; then
-				if [ "$(grep -c "uiscribe_version_local" $SETTINGSFILE)" -gt 0 ]; then
-					if [ "$2" != "$(grep "uiscribe_version_local" /jffs/addons/custom_settings.txt | cut -f2 -d' ')" ]; then
-						sed -i "s/uiscribe_version_local.*/uiscribe_version_local $2/" "$SETTINGSFILE"
+			if [ -f "$SETTINGSFILE" ]
+			then
+				if [ "$(grep -c "^uiscribe_version_local" $SETTINGSFILE)" -gt 0 ]
+				then
+					if [ "$2" != "$(grep "^uiscribe_version_local" "$SETTINGSFILE" | cut -f2 -d' ')" ]
+					then
+						sed -i "s/^uiscribe_version_local.*/uiscribe_version_local $2/" "$SETTINGSFILE"
 					fi
 				else
 					echo "uiscribe_version_local $2" >> "$SETTINGSFILE"
@@ -112,10 +151,13 @@ Set_Version_Custom_Settings(){
 			fi
 		;;
 		server)
-			if [ -f "$SETTINGSFILE" ]; then
-				if [ "$(grep -c "uiscribe_version_server" $SETTINGSFILE)" -gt 0 ]; then
-					if [ "$2" != "$(grep "uiscribe_version_server" /jffs/addons/custom_settings.txt | cut -f2 -d' ')" ]; then
-						sed -i "s/uiscribe_version_server.*/uiscribe_version_server $2/" "$SETTINGSFILE"
+			if [ -f "$SETTINGSFILE" ]
+			then
+				if [ "$(grep -c "^uiscribe_version_server" $SETTINGSFILE)" -gt 0 ]
+				then
+					if [ "$2" != "$(grep "^uiscribe_version_server" "$SETTINGSFILE" | cut -f2 -d' ')" ]
+					then
+						sed -i "s/^uiscribe_version_server.*/uiscribe_version_server $2/" "$SETTINGSFILE"
 					fi
 				else
 					echo "uiscribe_version_server $2" >> "$SETTINGSFILE"
@@ -127,20 +169,28 @@ Set_Version_Custom_Settings(){
 	esac
 }
 
-Update_Check(){
+##----------------------------------------##
+## Modified by Martinski W. [2025-Jun-09] ##
+##----------------------------------------##
+Update_Check()
+{
 	echo 'var updatestatus = "InProgress";' > "$SCRIPT_WEB_DIR/detect_update.js"
 	doupdate="false"
-	localver=$(grep "SCRIPT_VERSION=" "/jffs/scripts/$SCRIPT_NAME" | grep -m1 -oE 'v[0-9]{1,2}([.][0-9]{1,2})([.][0-9]{1,2})')
-	/usr/sbin/curl -fsL --retry 3 "$SCRIPT_REPO/$SCRIPT_NAME.sh" | grep -qF "jackyaz" || { Print_Output true "404 error detected - stopping update" "$ERR"; return 1; }
-	serverver=$(/usr/sbin/curl -fsL --retry 3 "$SCRIPT_REPO/$SCRIPT_NAME.sh" | grep "SCRIPT_VERSION=" | grep -m1 -oE 'v[0-9]{1,2}([.][0-9]{1,2})([.][0-9]{1,2})')
-	if [ "$localver" != "$serverver" ]; then
+	localver="$(grep "SCRIPT_VERSION=" "/jffs/scripts/$SCRIPT_NAME" | grep -m1 -oE "$scriptVersRegExp")"
+	[ -n "$localver" ] && Set_Version_Custom_Settings local "$localver"
+	curl -fsL --retry 4 --retry-delay 5 "$SCRIPT_REPO/$SCRIPT_NAME.sh" | grep -qF "jackyaz" || \
+	{ Print_Output true "404 error detected - stopping update" "$ERR"; return 1; }
+	serverver="$(curl -fsL --retry 4 --retry-delay 5 "$SCRIPT_REPO/$SCRIPT_NAME.sh" | grep "SCRIPT_VERSION=" | grep -m1 -oE "$scriptVersRegExp")"
+	if [ "$localver" != "$serverver" ]
+	then
 		doupdate="version"
 		Set_Version_Custom_Settings server "$serverver"
 		echo 'var updatestatus = "'"$serverver"'";'  > "$SCRIPT_WEB_DIR/detect_update.js"
 	else
 		localmd5="$(md5sum "/jffs/scripts/$SCRIPT_NAME" | awk '{print $1}')"
-		remotemd5="$(curl -fsL --retry 3 "$SCRIPT_REPO/$SCRIPT_NAME.sh" | md5sum | awk '{print $1}')"
-		if [ "$localmd5" != "$remotemd5" ]; then
+		remotemd5="$(curl -fsL --retry 4 --retry-delay 5 "$SCRIPT_REPO/$SCRIPT_NAME.sh" | md5sum | awk '{print $1}')"
+		if [ "$localmd5" != "$remotemd5" ]
+		then
 			doupdate="md5"
 			Set_Version_Custom_Settings server "$serverver-hotfix"
 			echo 'var updatestatus = "'"$serverver-hotfix"'";'  > "$SCRIPT_WEB_DIR/detect_update.js"
@@ -152,28 +202,35 @@ Update_Check(){
 	echo "$doupdate,$localver,$serverver"
 }
 
-Update_Version(){
-	if [ -z "$1" ]; then
+##----------------------------------------##
+## Modified by Martinski W. [2025-Jun-09] ##
+##----------------------------------------##
+Update_Version()
+{
+	if [ $# -eq 0 ] || [ -z "$1" ]
+	then
 		updatecheckresult="$(Update_Check)"
 		isupdate="$(echo "$updatecheckresult" | cut -f1 -d',')"
 		localver="$(echo "$updatecheckresult" | cut -f2 -d',')"
 		serverver="$(echo "$updatecheckresult" | cut -f3 -d',')"
-		
+
 		if [ "$isupdate" = "version" ]; then
 			Print_Output true "New version of $SCRIPT_NAME available - $serverver" "$PASS"
 		elif [ "$isupdate" = "md5" ]; then
 			Print_Output true "MD5 hash of $SCRIPT_NAME does not match - hotfix available - $serverver" "$PASS"
 		fi
-		
-		if [ "$isupdate" != "false" ]; then
-			printf "\\n${BOLD}Do you want to continue with the update? (y/n)${CLEARFORMAT}  "
+
+		if [ "$isupdate" != "false" ]
+		then
+			printf "\n${BOLD}Do you want to continue with the update? (y/n)${CLEARFORMAT}  "
 			read -r confirm
 			case "$confirm" in
 				y|Y)
-					printf "\\n"
+					printf "\n"
 					Update_File shared-jy.tar.gz
 					Update_File Main_LogStatus_Content.asp
-					/usr/sbin/curl -fsL --retry 3 "$SCRIPT_REPO/$SCRIPT_NAME.sh" -o "/jffs/scripts/$SCRIPT_NAME" && Print_Output true "$SCRIPT_NAME successfully updated"
+					Download_File "$SCRIPT_REPO/$SCRIPT_NAME.sh" "/jffs/scripts/$SCRIPT_NAME" && \
+					Print_Output true "$SCRIPT_NAME successfully updated" "$PASS"
 					chmod 0755 "/jffs/scripts/$SCRIPT_NAME"
 					Set_Version_Custom_Settings local "$serverver"
 					Set_Version_Custom_Settings server "$serverver"
@@ -183,7 +240,7 @@ Update_Version(){
 					exit 0
 				;;
 				*)
-					printf "\\n"
+					printf "\n"
 					Clear_Lock
 					return 1
 				;;
@@ -193,39 +250,48 @@ Update_Version(){
 			Clear_Lock
 		fi
 	fi
-	
-	if [ "$1" = "force" ]; then
-		serverver=$(/usr/sbin/curl -fsL --retry 3 "$SCRIPT_REPO/$SCRIPT_NAME.sh" | grep "SCRIPT_VERSION=" | grep -m1 -oE 'v[0-9]{1,2}([.][0-9]{1,2})([.][0-9]{1,2})')
+
+	if [ "$1" = "force" ]
+	then
+		serverver="$(curl -fsL --retry 4 --retry-delay 5 "$SCRIPT_REPO/$SCRIPT_NAME.sh" | grep "SCRIPT_VERSION=" | grep -m1 -oE "$scriptVersRegExp")"
 		Print_Output true "Downloading latest version ($serverver) of $SCRIPT_NAME" "$PASS"
 		Update_File shared-jy.tar.gz
 		Update_File Main_LogStatus_Content.asp
-		/usr/sbin/curl -fsL --retry 3 "$SCRIPT_REPO/$SCRIPT_NAME.sh" -o "/jffs/scripts/$SCRIPT_NAME" && Print_Output true "$SCRIPT_NAME successfully updated"
+		Download_File "$SCRIPT_REPO/$SCRIPT_NAME.sh" "/jffs/scripts/$SCRIPT_NAME" && \
+		Print_Output true "$SCRIPT_NAME successfully updated" "$PASS"
 		chmod 0755 "/jffs/scripts/$SCRIPT_NAME"
 		Set_Version_Custom_Settings local "$serverver"
 		Set_Version_Custom_Settings server "$serverver"
 		Clear_Lock
-		if [ -z "$2" ]; then
+		if [ $# -lt 2 ] || [ -z "$2" ]
+		then
 			PressEnter
 			exec "$0"
-		elif [ "$2" = "unattended" ]; then
+		elif [ "$2" = "unattended" ]
+		then
 			exec "$0" postupdate
 		fi
 		exit 0
 	fi
 }
 
-Update_File(){
-	if [ "$1" = "Main_LogStatus_Content.asp" ]; then
+Update_File()
+{
+	if [ "$1" = "Main_LogStatus_Content.asp" ]
+	then
 		tmpfile="/tmp/$1"
 		Download_File "$SCRIPT_REPO/$1" "$tmpfile"
-		if ! diff -q "$tmpfile" "$SCRIPT_DIR/$1" >/dev/null 2>&1; then
+		if ! diff -q "$tmpfile" "$SCRIPT_DIR/$1" >/dev/null 2>&1
+		then
 			Download_File "$SCRIPT_REPO/$1" "$SCRIPT_DIR/$1"
 			Print_Output true "New version of $1 downloaded" "$PASS"
 			Mount_WebUI
 		fi
 		rm -f "$tmpfile"
-	elif [ "$1" = "shared-jy.tar.gz" ]; then
-		if [ ! -f "$SHARED_DIR/$1.md5" ]; then
+	elif [ "$1" = "shared-jy.tar.gz" ]
+	then
+		if [ ! -f "$SHARED_DIR/$1.md5" ]
+		then
 			Download_File "$SHARED_REPO/$1" "$SHARED_DIR/$1"
 			Download_File "$SHARED_REPO/$1.md5" "$SHARED_DIR/$1.md5"
 			tar -xzf "$SHARED_DIR/$1" -C "$SHARED_DIR"
@@ -233,8 +299,9 @@ Update_File(){
 			Print_Output true "New version of $1 downloaded" "$PASS"
 		else
 			localmd5="$(cat "$SHARED_DIR/$1.md5")"
-			remotemd5="$(curl -fsL --retry 3 "$SHARED_REPO/$1.md5")"
-			if [ "$localmd5" != "$remotemd5" ]; then
+			remotemd5="$(curl -fsL --retry 4 --retry-delay 5 "$SHARED_REPO/$1.md5")"
+			if [ "$localmd5" != "$remotemd5" ]
+			then
 				Download_File "$SHARED_REPO/$1" "$SHARED_DIR/$1"
 				Download_File "$SHARED_REPO/$1.md5" "$SHARED_DIR/$1.md5"
 				tar -xzf "$SHARED_DIR/$1" -C "$SHARED_DIR"
@@ -255,73 +322,80 @@ Validate_Number(){
 	fi
 }
 
-Create_Dirs(){
+Create_Dirs()
+{
 	if [ ! -d "$SCRIPT_DIR" ]; then
 		mkdir -p "$SCRIPT_DIR"
 	fi
-	
+
 	if [ ! -d "$SHARED_DIR" ]; then
 		mkdir -p "$SHARED_DIR"
 	fi
-	
+
 	if [ ! -d "$SCRIPT_WEB_DIR" ]; then
 		mkdir -p "$SCRIPT_WEB_DIR"
 	fi
 }
 
-Create_Symlinks(){
+Create_Symlinks()
+{
 	syslog-ng --preprocess-into="$SCRIPT_DIR/tmplogs.txt" && grep -A 1 "destination" "$SCRIPT_DIR/tmplogs.txt" | grep "file(\"" | grep -v "#" | grep -v "messages" | sed -e 's/file("//;s/".*$//' | awk '{$1=$1;print}' > "$SCRIPT_DIR/.logs"
 	rm -f "$SCRIPT_DIR/tmplogs.txt" 2>/dev/null
-	
+
 	if [ "$1" = "force" ]; then
 		rm -f "$SCRIPT_DIR/.logs_user"
 	fi
-	
+
 	if [ ! -f "$SCRIPT_DIR/.logs_user" ]; then
 		touch "$SCRIPT_DIR/.logs_user"
 	fi
-	
+
 	while IFS='' read -r line || [ -n "$line" ]; do
 		if [ "$(grep -c "$line" "$SCRIPT_DIR/.logs_user")" -eq 0 ]; then
 			printf "%s\\n" "$line" >> "$SCRIPT_DIR/.logs_user"
 		fi
 	done < "$SCRIPT_DIR/.logs"
-	
+
 	rm -f "$SCRIPT_WEB_DIR/"*.htm 2>/dev/null
 	ln -s "$SCRIPT_DIR/.logs_user" "$SCRIPT_WEB_DIR/logs.htm" 2>/dev/null
 	ln -s /opt/var/log/messages "$SCRIPT_WEB_DIR/messages.htm" 2>/dev/null
 	while IFS='' read -r line || [ -n "$line" ]; do
 		ln -s "$line" "$SCRIPT_WEB_DIR/$(basename "$line").htm" 2>/dev/null
 	done < "$SCRIPT_DIR/.logs"
-	
+
 	if [ ! -d "$SHARED_WEB_DIR" ]; then
 		ln -s "$SHARED_DIR" "$SHARED_WEB_DIR" 2>/dev/null
 	fi
 }
 
-Logs_FromSettings(){
+Logs_FromSettings()
+{
 	SETTINGSFILE="/jffs/addons/custom_settings.txt"
 	LOGS_USER="$SCRIPT_DIR/.logs_user"
-	if [ -f "$SETTINGSFILE" ]; then
-		if grep -q "uiscribe_logs_enabled" "$SETTINGSFILE"; then
+	if [ -f "$SETTINGSFILE" ]
+	then
+		if grep -q "uiscribe_logs_enabled" "$SETTINGSFILE"
+		then
 			Print_Output true "Updated logs from WebUI found, merging into $LOGS_USER" "$PASS"
 			cp -a "$LOGS_USER" "$LOGS_USER.bak"
 			SETTINGVALUE="$(grep "uiscribe_logs_enabled" "$SETTINGSFILE" | cut -f2 -d' ')"
 			sed -i "\\~uiscribe_logs_enabled~d" "$SETTINGSFILE"
-			
+
 			syslog-ng --preprocess-into="$SCRIPT_DIR/tmplogs.txt" && grep -A 1 "destination" "$SCRIPT_DIR/tmplogs.txt" | grep "file(\"" | grep -v "#" | grep -v "messages" | sed -e 's/file("//;s/".*$//' | awk '{$1=$1;print}' > "$SCRIPT_DIR/.logs"
 			rm -f "$SCRIPT_DIR/tmplogs.txt" 2>/dev/null
-			
+
 			echo "" > "$LOGS_USER"
-			
+
 			comment=" #excluded#"
-			while IFS='' read -r line || [ -n "$line" ]; do
+			while IFS='' read -r line || [ -n "$line" ]
+			do
 				if [ "$(grep -c "$line" "$LOGS_USER")" -eq 0 ]; then
 						printf "%s%s\\n" "$line" "$comment" >> "$LOGS_USER"
 				fi
 			done < "$SCRIPT_DIR/.logs"
-			
-			for log in $(echo "$SETTINGVALUE" | sed "s/,/ /g"); do
+
+			for log in $(echo "$SETTINGVALUE" | sed "s/,/ /g")
+			do
 				loglinenumber="$(grep -n "$log" "$LOGS_USER" | cut -f1 -d':')"
 				logline="$(sed "$loglinenumber!d" "$LOGS_USER" | awk '{$1=$1};1')"
 				
@@ -329,17 +403,17 @@ Logs_FromSettings(){
 					sed -i "$loglinenumber"'s/ #excluded#//' "$LOGS_USER"
 				fi
 			done
-			
+
 			awk 'NF' "$LOGS_USER" > /tmp/uiscribe-logs
 			mv /tmp/uiscribe-logs "$LOGS_USER"
-			
+
 			rm -f "$SCRIPT_WEB_DIR/"*.htm 2>/dev/null
 			ln -s "$SCRIPT_DIR/.logs_user" "$SCRIPT_WEB_DIR/logs.htm" 2>/dev/null
 			ln -s /opt/var/log/messages "$SCRIPT_WEB_DIR/messages.htm" 2>/dev/null
 			while IFS='' read -r line || [ -n "$line" ]; do
 				ln -s "$line" "$SCRIPT_WEB_DIR/$(basename "$line").htm" 2>/dev/null
 			done < "$SCRIPT_DIR/.logs"
-			
+
 			Print_Output true "Merge of updated logs from WebUI completed successfully" "$PASS"
 		else
 			Print_Output true "No updated logs from WebUI found, no merge into $LOGS_USER necessary" "$PASS"
@@ -477,44 +551,52 @@ Auto_Startup(){
 }
 
 ### function based on @dave14305's FlexQoS webconfigpage function ###
-Get_WebUI_URL(){
-	urlproto=""
-	urldomain=""
-	urlport=""
-	
+##----------------------------------------##
+## Modified by Martinski W. [2025-Jun-09] ##
+##----------------------------------------##
+Get_WebUI_URL()
+{
+	local preURL  urlProto  urlDomain  urlPort  lanPort
+
 	if [ "$(nvram get http_enable)" -eq 1 ]; then
-		urlproto="https"
+		urlProto="https"
 	else
-		urlproto="http"
+		urlProto="http"
 	fi
 	if [ -n "$(nvram get lan_domain)" ]; then
-		urldomain="$(nvram get lan_hostname).$(nvram get lan_domain)"
+		urlDomain="$(nvram get lan_hostname).$(nvram get lan_domain)"
 	else
-		urldomain="$(nvram get lan_ipaddr)"
+		urlDomain="$(nvram get lan_ipaddr)"
 	fi
-	if [ "$(nvram get ${urlproto}_lanport)" -eq 80 ] || [ "$(nvram get ${urlproto}_lanport)" -eq 443 ]; then
-		urlport=""
-	else
-		urlport=":$(nvram get ${urlproto}_lanport)"
-	fi
-	
-	preurl="$(echo "${urlproto}://${urldomain}${urlport}" | tr "A-Z" "a-z")"
-	echo "${preurl}/Main_LogStatus_Content.asp"
-}
-### ###
 
-Download_File(){
-	/usr/sbin/curl -fsL --retry 3 "$1" -o "$2"
+	lanPort="$(nvram get ${urlProto}_lanport)"
+	if [ "$lanPort" -eq 80 ] || [ "$lanPort" -eq 443 ]
+	then
+		urlPort=""
+	else
+		urlPort=":$lanPort"
+	fi
+
+	preURL="$(echo "${urlProto}://${urlDomain}${urlPort}" | tr "A-Z" "a-z")"
+	echo "${preURL}/Main_LogStatus_Content.asp"
 }
 
-Mount_WebUI(){
+##----------------------------------------##
+## Modified by Martinski W. [2025-Jun-09] ##
+##----------------------------------------##
+Download_File()
+{ /usr/sbin/curl -LSs --retry 4 --retry-delay 5 --retry-connrefused "$1" -o "$2" ; }
+
+Mount_WebUI()
+{
 	Print_Output true "Mounting WebUI page for $SCRIPT_NAME" "$PASS"
 	umount /www/Main_LogStatus_Content.asp 2>/dev/null
 	mount -o bind "$SCRIPT_DIR/Main_LogStatus_Content.asp" /www/Main_LogStatus_Content.asp
 	Print_Output true "Mounted $SCRIPT_NAME WebUI page as Main_LogStatus_Content.asp" "$PASS"
 }
 
-Shortcut_Script(){
+Shortcut_Script()
+{
 	case $1 in
 		create)
 			if [ -d /opt/bin ] && [ ! -f "/opt/bin/$SCRIPT_NAME" ] && [ -f "/jffs/scripts/$SCRIPT_NAME" ]; then
@@ -530,22 +612,23 @@ Shortcut_Script(){
 	esac
 }
 
-PressEnter(){
-	while true; do
-		printf "Press enter to continue..."
-		read -r key
+PressEnter()
+{
+	while true
+	do
+		printf "Press <Enter> key to continue..."
+		read -rs key
 		case "$key" in
-			*)
-				break
-			;;
+			*) break ;;
 		esac
 	done
 	return 0
 }
 
-ScriptHeader(){
+ScriptHeader()
+{
 	clear
-	printf "\\n"
+	printf "\n"
 	printf "${BOLD}########################################################${CLEARFORMAT}\\n"
 	printf "${BOLD}##                                                    ##${CLEARFORMAT}\\n"
 	printf "${BOLD}##           _   _____              _  _              ##${CLEARFORMAT}\\n"
@@ -555,16 +638,17 @@ ScriptHeader(){
 	printf "${BOLD}##   | |_| || | ____) || (__ | |   | || |_) ||  __/   ##${CLEARFORMAT}\\n"
 	printf "${BOLD}##    \__,_||_||_____/  \___||_|   |_||_.__/  \___|   ##${CLEARFORMAT}\\n"
 	printf "${BOLD}##                                                    ##${CLEARFORMAT}\\n"
-	printf "${BOLD}##                 %s on %-9s                ##${CLEARFORMAT}\\n" "$SCRIPT_VERSION" "$ROUTER_MODEL"
+	printf "${BOLD}##             %9s on %-18s        ##${CLEARFORMAT}\n" "$SCRIPT_VERSION" "$ROUTER_MODEL"
 	printf "${BOLD}##                                                    ##${CLEARFORMAT}\\n"
-	printf "${BOLD}##        https://github.com/AMTM-OSR/spdMerlin       ##${CLEARFORMAT}\\n"
-	printf "${BOLD}##  Forked from https://github.com/jackyaz/spdMerlin  ##${CLEARFORMAT}\\n"
+	printf "${BOLD}##        https://github.com/AMTM-OSR/uiScribe        ##${CLEARFORMAT}\\n"
+	printf "${BOLD}##  Forked from https://github.com/jackyaz/uiScribe   ##${CLEARFORMAT}\\n"
 	printf "${BOLD}##                                                    ##${CLEARFORMAT}\\n"
 	printf "${BOLD}########################################################${CLEARFORMAT}\\n"
-	printf "\\n"
+	printf "\n"
 }
 
-MainMenu(){
+MainMenu()
+{
 	Create_Dirs
 	Create_Symlinks
 	printf "WebUI for %s is available at:\\n${SETTING}%s${CLEARFORMAT}\\n\\n" "$SCRIPT_NAME" "$(Get_WebUI_URL)"
@@ -578,7 +662,8 @@ MainMenu(){
 	printf "${BOLD}########################################################${CLEARFORMAT}\\n"
 	printf "\\n"
 	
-	while true; do
+	while true
+	do
 		printf "Choose an option:  "
 		read -r menu
 		case "$menu" in
@@ -681,20 +766,26 @@ Check_Requirements(){
 	fi
 }
 
-Menu_Install(){
+##----------------------------------------##
+## Modified by Martinski W. [2025-Jun-09] ##
+##----------------------------------------##
+Menu_Install()
+{
+	ScriptHeader
 	Print_Output true "Welcome to $SCRIPT_NAME $SCRIPT_VERSION, a script by JackYaz"
 	sleep 1
-	
+
 	Print_Output false "Checking your router meets the requirements for $SCRIPT_NAME"
-	
-	if ! Check_Requirements; then
+
+	if ! Check_Requirements
+	then
 		Print_Output false "Requirements for $SCRIPT_NAME not met, please see above for the reason(s)" "$CRIT"
 		PressEnter
 		Clear_Lock
 		rm -f "/jffs/scripts/$SCRIPT_NAME" 2>/dev/null
 		exit 1
 	fi
-	
+
 	Create_Dirs
 	Set_Version_Custom_Settings local "$SCRIPT_VERSION"
 	Set_Version_Custom_Settings server "$SCRIPT_VERSION"
@@ -704,31 +795,39 @@ Menu_Install(){
 	Auto_Startup create 2>/dev/null
 	Auto_ServiceEvent create 2>/dev/null
 	Shortcut_Script create
-	
+
 	Print_Output true "$SCRIPT_NAME installed successfully!" "$PASS"
-	
+
 	Clear_Lock
 }
 
-Menu_Startup(){
-	if [ -z "$PPID" ] || ! ps | grep "$PPID" | grep -iq "scribe"; then
-		if [ -z "$1" ]; then
-			Print_Output true "Missing argument for startup, not starting $SCRIPT_NAME" "$WARN"
+##----------------------------------------##
+## Modified by Martinski W. [2025-Jun-09] ##
+##----------------------------------------##
+Menu_Startup()
+{
+	if [ -z "$PPID" ] || ! ps | grep "$PPID" | grep -iq "scribe"
+	then
+		if [ $# -eq 0 ] || [ -z "$1" ]
+		then
+			Print_Output true "Missing argument for startup, not starting $SCRIPT_NAME" "$ERR"
 			exit 1
-		elif [ "$1" != "force" ]; then
-			if [ ! -f "$1/entware/bin/opkg" ]; then
-				Print_Output true "$1 does not contain Entware, not starting $SCRIPT_NAME" "$WARN"
+		elif [ "$1" != "force" ]
+		then
+			if [ ! -f "$1/entware/bin/opkg" ]
+			then
+				Print_Output true "$1 does NOT contain Entware, not starting $SCRIPT_NAME" "$CRIT"
 				exit 1
 			else
-				Print_Output true "$1 contains Entware, starting $SCRIPT_NAME" "$WARN"
+				Print_Output true "$1 contains Entware, $SCRIPT_NAME $SCRIPT_VERSION starting up" "$WARN"
 			fi
 		fi
 	fi
-	
+
 	NTP_Ready
-	
+
 	Check_Lock
-	
+
 	Create_Dirs
 	Create_Symlinks
 	Auto_Startup create 2>/dev/null
@@ -738,7 +837,8 @@ Menu_Startup(){
 	Clear_Lock
 }
 
-Menu_Uninstall(){
+Menu_Uninstall()
+{
 	Print_Output true "Removing $SCRIPT_NAME..." "$PASS"
 	Auto_Startup delete 2>/dev/null
 	Auto_ServiceEvent delete 2>/dev/null
@@ -754,16 +854,20 @@ Menu_Uninstall(){
 	Print_Output true "Uninstall completed" "$PASS"
 }
 
-NTP_Ready(){
-	if [ "$(nvram get ntp_ready)" -eq 0 ]; then
+NTP_Ready()
+{
+	if [ "$(nvram get ntp_ready)" -eq 0 ]
+	then
 		ntpwaitcount=0
 		Check_Lock
-		while [ "$(nvram get ntp_ready)" -eq 0 ] && [ "$ntpwaitcount" -lt 600 ]; do
+		while [ "$(nvram get ntp_ready)" -eq 0 ] && [ "$ntpwaitcount" -lt 600 ]
+		do
 			ntpwaitcount="$((ntpwaitcount + 30))"
 			Print_Output true "Waiting for NTP to sync..." "$WARN"
 			sleep 30
 		done
-		if [ "$ntpwaitcount" -ge 600 ]; then
+		if [ "$ntpwaitcount" -ge 600 ]
+		then
 			Print_Output true "NTP failed to sync after 10 minutes. Please resolve!" "$CRIT"
 			Clear_Lock
 			exit 1
@@ -775,17 +879,21 @@ NTP_Ready(){
 }
 
 ### function based on @Adamm00's Skynet USB wait function ###
-Entware_Ready(){
-	if [ ! -f /opt/bin/opkg ]; then
+Entware_Ready()
+{
+	if [ ! -f /opt/bin/opkg ]
+	then
 		Check_Lock
 		sleepcount=1
-		while [ ! -f /opt/bin/opkg ] && [ "$sleepcount" -le 10 ]; do
-			Print_Output true "Entware not found, sleeping for 10s (attempt $sleepcount of 10)" "$ERR"
+		while [ ! -f /opt/bin/opkg ] && [ "$sleepcount" -le 10 ]
+		do
+			Print_Output true "Entware NOT found, sleeping for 10s (attempt $sleepcount of 10)" "$ERR"
 			sleepcount="$((sleepcount + 1))"
 			sleep 10
 		done
-		if [ ! -f /opt/bin/opkg ]; then
-			Print_Output true "Entware not found and is required for $SCRIPT_NAME to run, please resolve" "$CRIT"
+		if [ ! -f /opt/bin/opkg ]
+		then
+			Print_Output true "Entware NOT found and is required for $SCRIPT_NAME to run, please resolve!" "$CRIT"
 			Clear_Lock
 			exit 1
 		else
@@ -794,29 +902,39 @@ Entware_Ready(){
 		fi
 	fi
 }
-### ###
 
 ### function based on @dave14305's FlexQoS about function ###
-Show_About(){
+##----------------------------------------##
+## Modified by Martinski W. [2025-Jun-09] ##
+##----------------------------------------##
+Show_About()
+{
 	cat <<EOF
-About
+About $SCRIPT_VERS_INFO
   $SCRIPT_NAME updates the System Log page to show log files created
-  by Scribe (syslog-ng). Requires Scribe https://github.com/cynicastic/scribe
+  by Scribe (syslog-ng). Requires Scribe https://github.com/AMTM-OSR/scribe
+
 License
   $SCRIPT_NAME is free to use under the GNU General Public License
   version 3 (GPL-3.0) https://opensource.org/licenses/GPL-3.0
+
 Help & Support
   https://www.snbforums.com/forums/asuswrt-merlin-addons.60/?prefix_id=24
+
 Source code
   https://github.com/AMTM-OSR/$SCRIPT_NAME
 EOF
-	printf "\\n"
+	printf "\n"
 }
-### ###
 
 ### function based on @dave14305's FlexQoS show_help function ###
-Show_Help(){
+##----------------------------------------##
+## Modified by Martinski W. [2025-Jun-09] ##
+##----------------------------------------##
+Show_Help()
+{
 	cat <<EOF
+HELP $SCRIPT_VERS_INFO
 Available commands:
   $SCRIPT_NAME about              explains functionality
   $SCRIPT_NAME update             checks for updates
@@ -827,9 +945,16 @@ Available commands:
   $SCRIPT_NAME develop            switch to development branch
   $SCRIPT_NAME stable             switch to stable branch
 EOF
-	printf "\\n"
+	printf "\n"
 }
-### ###
+
+##-------------------------------------##
+## Added by Martinski W. [2025-Jun-09] ##
+##-------------------------------------##
+if [ "$SCRIPT_BRANCH" != "develop" ]
+then SCRIPT_VERS_INFO=""
+else SCRIPT_VERS_INFO="$scriptVERINFO"
+fi
 
 if [ $# -eq 0 ] || [ -z "$1" ]
 then
@@ -925,7 +1050,7 @@ case "$1" in
 	;;
 	*)
 		ScriptHeader
-		Print_Output false "Command not recognised." "$ERR"
+		Print_Output false "Parameter [$*] is NOT recognised." "$ERR"
 		Print_Output false "For a list of available commands run: $SCRIPT_NAME help"
 		exit 1
 	;;
