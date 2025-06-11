@@ -16,7 +16,7 @@ You must be running firmware Merlin 384.15/384.13_4 (or later) [Asuswrt-Merlin](
 Using your preferred SSH client/terminal, copy and paste the following command, then press Enter:
 
 ```sh
-/usr/sbin/curl --retry 3 "https://raw.githubusercontent.com/AMTM-OSR/spdMerlin/master/uiScribe.sh" -o "/jffs/scripts/uiScribe" && chmod 0755 /jffs/scripts/uiScribe && /jffs/scripts/uiScribe install
+/usr/sbin/curl --retry 3 "https://raw.githubusercontent.com/AMTM-OSR/uiScribe/master/uiScribe.sh" -o "/jffs/scripts/uiScribe" && chmod 0755 /jffs/scripts/uiScribe && /jffs/scripts/uiScribe install
 ```
 
 ## Usage
