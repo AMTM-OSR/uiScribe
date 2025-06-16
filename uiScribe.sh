@@ -13,7 +13,7 @@
 ##  Forked from https://github.com/jackyaz/uiScribe   ##
 ##                                                    ##
 ########################################################
-# Last Modified: 2025-Jun-10
+# Last Modified: 2025-Jun-15
 #-------------------------------------------------------
 
 ###########        Shellcheck directives      ##########
@@ -30,7 +30,7 @@
 ### Start of script variables ###
 readonly SCRIPT_NAME="uiScribe"
 readonly SCRIPT_VERSION="v1.4.7"
-readonly SCRIPT_VERSTAG="25061012"
+readonly SCRIPT_VERSTAG="25061523"
 SCRIPT_BRANCH="master"
 SCRIPT_REPO="https://raw.githubusercontent.com/AMTM-OSR/$SCRIPT_NAME/$SCRIPT_BRANCH"
 readonly SCRIPT_DIR="/jffs/addons/$SCRIPT_NAME.d"
@@ -45,6 +45,7 @@ readonly SHARED_WEB_DIR="$SCRIPT_PAGE_DIR/shared-jy"
 ## Added by Martinski W. [2025-Jun-09] ##
 ##-------------------------------------##
 readonly scriptVersRegExp="v[0-9]{1,2}([.][0-9]{1,2})([.][0-9]{1,2})"
+readonly webPageLineRegExp="(Scribe|uiScribe|uiscribe_version_server)"
 readonly scriptVERINFO="[${SCRIPT_VERSION}_${SCRIPT_VERSTAG}, Branch: $SCRIPT_BRANCH]"
 
 ### End of script variables ###
@@ -275,19 +276,29 @@ Update_Version()
 	fi
 }
 
+##----------------------------------------##
+## Modified by Martinski W. [2025-Jun-15] ##
+##----------------------------------------##
 Update_File()
 {
 	if [ "$1" = "Main_LogStatus_Content.asp" ]
 	then
 		tmpfile="/tmp/$1"
-		Download_File "$SCRIPT_REPO/$1" "$tmpfile"
-		if ! diff -q "$tmpfile" "$SCRIPT_DIR/$1" >/dev/null 2>&1
+		if [ -f "$SCRIPT_DIR/$1" ]
 		then
+			Download_File "$SCRIPT_REPO/$1" "$tmpfile"
+			if ! diff -q "$tmpfile" "$SCRIPT_DIR/$1" >/dev/null 2>&1
+			then
+				Download_File "$SCRIPT_REPO/$1" "$SCRIPT_DIR/$1"
+				Print_Output true "New version of $1 downloaded" "$PASS"
+				Mount_WebUI
+			fi
+			rm -f "$tmpfile"
+		else
 			Download_File "$SCRIPT_REPO/$1" "$SCRIPT_DIR/$1"
 			Print_Output true "New version of $1 downloaded" "$PASS"
 			Mount_WebUI
 		fi
-		rm -f "$tmpfile"
 	elif [ "$1" = "shared-jy.tar.gz" ]
 	then
 		if [ ! -f "$SHARED_DIR/$1.md5" ]
@@ -314,7 +325,8 @@ Update_File()
 	fi
 }
 
-Validate_Number(){
+Validate_Number()
+{
 	if [ "$1" -eq "$1" ] 2>/dev/null; then
 		return 0
 	else
@@ -337,12 +349,22 @@ Create_Dirs()
 	fi
 }
 
+##----------------------------------------##
+## Modified by Martinski W. [2025-Jun-15] ##
+##----------------------------------------##
 Create_Symlinks()
 {
-	syslog-ng --preprocess-into="$SCRIPT_DIR/tmplogs.txt" && grep -A 1 "destination" "$SCRIPT_DIR/tmplogs.txt" | grep "file(\"" | grep -v "#" | grep -v "messages" | sed -e 's/file("//;s/".*$//' | awk '{$1=$1;print}' > "$SCRIPT_DIR/.logs"
-	rm -f "$SCRIPT_DIR/tmplogs.txt" 2>/dev/null
+	if [ -z "$(which syslog-ng)" ]
+	then
+		Print_Output true "**ERROR**: syslog-ng is NOT found." "$CRIT"
+		touch "$SCRIPT_DIR/.logs"
+	else
+		syslog-ng --preprocess-into="$SCRIPT_DIR/tmplogs.txt" && grep -A 1 "destination" "$SCRIPT_DIR/tmplogs.txt" | grep "file(\"" | grep -v "#" | grep -v "messages" | sed -e 's/file("//;s/".*$//' | awk '{$1=$1;print}' > "$SCRIPT_DIR/.logs"
+		rm -f "$SCRIPT_DIR/tmplogs.txt" 2>/dev/null
+	fi
 
-	if [ "$1" = "force" ]; then
+	if [ $# -gt 0 ] && [ "$1" = "force" ]
+	then
 		rm -f "$SCRIPT_DIR/.logs_user"
 	fi
 
@@ -350,7 +372,8 @@ Create_Symlinks()
 		touch "$SCRIPT_DIR/.logs_user"
 	fi
 
-	while IFS='' read -r line || [ -n "$line" ]; do
+	while IFS='' read -r line || [ -n "$line" ]
+	do
 		if [ "$(grep -c "$line" "$SCRIPT_DIR/.logs_user")" -eq 0 ]; then
 			printf "%s\\n" "$line" >> "$SCRIPT_DIR/.logs_user"
 		fi
@@ -359,7 +382,8 @@ Create_Symlinks()
 	rm -f "$SCRIPT_WEB_DIR/"*.htm 2>/dev/null
 	ln -s "$SCRIPT_DIR/.logs_user" "$SCRIPT_WEB_DIR/logs.htm" 2>/dev/null
 	ln -s /opt/var/log/messages "$SCRIPT_WEB_DIR/messages.htm" 2>/dev/null
-	while IFS='' read -r line || [ -n "$line" ]; do
+	while IFS='' read -r line || [ -n "$line" ]
+	do
 		ln -s "$line" "$SCRIPT_WEB_DIR/$(basename "$line").htm" 2>/dev/null
 	done < "$SCRIPT_DIR/.logs"
 
@@ -398,7 +422,7 @@ Logs_FromSettings()
 			do
 				loglinenumber="$(grep -n "$log" "$LOGS_USER" | cut -f1 -d':')"
 				logline="$(sed "$loglinenumber!d" "$LOGS_USER" | awk '{$1=$1};1')"
-				
+
 				if echo "$logline" | grep -q "#excluded" ; then
 					sed -i "$loglinenumber"'s/ #excluded#//' "$LOGS_USER"
 				fi
@@ -421,67 +445,77 @@ Logs_FromSettings()
 	fi
 }
 
-Generate_Log_List(){
+Generate_Log_List()
+{
 	ScriptHeader
 	goback="false"
-	printf "Retrieving list of log files...\\n\\n"
+	printf "Retrieving list of log files...\n\n"
 	logcount="$(wc -l < "$SCRIPT_DIR/.logs_user")"
 	COUNTER=1
-	until [ "$COUNTER" -gt "$logcount" ]; do
+	until [ "$COUNTER" -gt "$logcount" ]
+	do
 		logfile="$(sed "$COUNTER!d" "$SCRIPT_DIR/.logs_user" | awk '{$1=$1};1')"
 		if [ "$COUNTER" -lt 10 ]; then
-			printf "%s)  %s\\n" "$COUNTER" "$logfile"
+			printf "%s)  %s\n" "$COUNTER" "$logfile"
 		else
-			printf "%s) %s\\n" "$COUNTER" "$logfile"
+			printf "%s) %s\n" "$COUNTER" "$logfile"
 		fi
-		COUNTER=$((COUNTER + 1))
+		COUNTER="$((COUNTER + 1))"
 	done
-	
-	printf "\\ne)  Go back\\n"
-	
-	while true; do
-	printf "\\n${BOLD}Please select a log to toggle inclusion in %s (1-%s):${CLEARFORMAT}  " "$SCRIPT_NAME" "$logcount"
-	read -r log
-	
-	if [ "$log" = "e" ]; then
-		goback="true"
-		break
-	elif ! Validate_Number "$log"; then
-		printf "\\n\\e[31mPlease enter a valid number (1-%s)${CLEARFORMAT}\\n" "$logcount"
-	else
-		if [ "$log" -lt 1 ] || [ "$log" -gt "$logcount" ]; then
-			printf "\\n\\e[31mPlease enter a number between 1 and %s${CLEARFORMAT}\\n" "$logcount"
-		else
-			logline="$(sed "$log!d" "$SCRIPT_DIR/.logs_user" | awk '{$1=$1};1')"
-			if echo "$logline" | grep -q "#excluded#" ; then
-					sed -i "$log"'s/ #excluded#//' "$SCRIPT_DIR/.logs_user"
-			else
-				sed -i "$log"'s/$/ #excluded#/' "$SCRIPT_DIR/.logs_user"
-			fi
-			sed -i 's/ *$//' "$SCRIPT_DIR/.logs_user"
-			printf "\\n"
+	printf "\ne)  Go back\n"
+
+	while true
+	do
+		printf "\n${BOLD}Please select a log to toggle inclusion in %s [1-%s]:${CLEARFORMAT}  " "$SCRIPT_NAME" "$logcount"
+		read -r log
+
+		if [ "$log" = "e" ]
+		then
+			goback="true"
 			break
+		elif ! Validate_Number "$log"
+		then
+			printf "\n${ERR}Please enter a valid number [1-%s]${CLEARFORMAT}\n" "$logcount"
+		else
+			if [ "$log" -lt 1 ] || [ "$log" -gt "$logcount" ]
+			then
+				printf "\n${ERR}Please enter a number between 1 and %s${CLEARFORMAT}\n" "$logcount"
+			else
+				logline="$(sed "$log!d" "$SCRIPT_DIR/.logs_user" | awk '{$1=$1};1')"
+				if echo "$logline" | grep -q "#excluded#"
+				then
+					sed -i "$log"'s/ #excluded#//' "$SCRIPT_DIR/.logs_user"
+				else
+					sed -i "$log"'s/$/ #excluded#/' "$SCRIPT_DIR/.logs_user"
+				fi
+				sed -i 's/ *$//' "$SCRIPT_DIR/.logs_user"
+				printf "\n"
+				break
+			fi
 		fi
-	fi
 	done
-	
+
 	if [ "$goback" != "true" ]; then
 		Generate_Log_List
 	fi
 }
 
-Auto_ServiceEvent(){
+Auto_ServiceEvent()
+{
 	case $1 in
 		create)
-			if [ -f /jffs/scripts/service-event ]; then
-				STARTUPLINECOUNT=$(grep -c '# '"$SCRIPT_NAME" /jffs/scripts/service-event)
-				STARTUPLINECOUNTEX=$(grep -cx 'if echo "$2" | /bin/grep -q "'"$SCRIPT_NAME"'"; then { /jffs/scripts/'"$SCRIPT_NAME"' service_event "$@" & }; fi # '"$SCRIPT_NAME" /jffs/scripts/service-event)
-				
-				if [ "$STARTUPLINECOUNT" -gt 1 ] || { [ "$STARTUPLINECOUNTEX" -eq 0 ] && [ "$STARTUPLINECOUNT" -gt 0 ]; }; then
+			if [ -f /jffs/scripts/service-event ]
+			then
+				STARTUPLINECOUNT="$(grep -c '# '"$SCRIPT_NAME" /jffs/scripts/service-event)"
+				STARTUPLINECOUNTEX="$(grep -cx 'if echo "$2" | /bin/grep -q "'"$SCRIPT_NAME"'"; then { /jffs/scripts/'"$SCRIPT_NAME"' service_event "$@" & }; fi # '"$SCRIPT_NAME" /jffs/scripts/service-event)"
+
+				if [ "$STARTUPLINECOUNT" -gt 1 ] || { [ "$STARTUPLINECOUNTEX" -eq 0 ] && [ "$STARTUPLINECOUNT" -gt 0 ]; }
+				then
 					sed -i -e '/# '"$SCRIPT_NAME"'/d' /jffs/scripts/service-event
 				fi
-				
-				if [ "$STARTUPLINECOUNTEX" -eq 0 ]; then
+
+				if [ "$STARTUPLINECOUNTEX" -eq 0 ]
+				then
 					echo 'if echo "$2" | /bin/grep -q "'"$SCRIPT_NAME"'"; then { /jffs/scripts/'"$SCRIPT_NAME"' service_event "$@" & }; fi # '"$SCRIPT_NAME" >> /jffs/scripts/service-event
 				fi
 			else
@@ -492,10 +526,11 @@ Auto_ServiceEvent(){
 			fi
 		;;
 		delete)
-			if [ -f /jffs/scripts/service-event ]; then
-				STARTUPLINECOUNT=$(grep -c '# '"$SCRIPT_NAME" /jffs/scripts/service-event)
-				
-				if [ "$STARTUPLINECOUNT" -gt 0 ]; then
+			if [ -f /jffs/scripts/service-event ]
+			then
+				STARTUPLINECOUNT="$(grep -c '# '"$SCRIPT_NAME" /jffs/scripts/service-event)"
+				if [ "$STARTUPLINECOUNT" -gt 0 ]
+				then
 					sed -i -e '/# '"$SCRIPT_NAME"'/d' /jffs/scripts/service-event
 				fi
 			fi
@@ -503,25 +538,30 @@ Auto_ServiceEvent(){
 	esac
 }
 
-Auto_Startup(){
+Auto_Startup()
+{
 	case $1 in
 		create)
-			if [ -f /jffs/scripts/services-start ]; then
-				STARTUPLINECOUNT=$(grep -c '# '"$SCRIPT_NAME" /jffs/scripts/services-start)
-				
-				if [ "$STARTUPLINECOUNT" -gt 0 ]; then
+			if [ -f /jffs/scripts/services-start ]
+			then
+				STARTUPLINECOUNT="$(grep -c '# '"$SCRIPT_NAME" /jffs/scripts/services-start)"
+				if [ "$STARTUPLINECOUNT" -gt 0 ]
+				then
 					sed -i -e '/# '"$SCRIPT_NAME"'/d' /jffs/scripts/services-start
 				fi
 			fi
-			if [ -f /jffs/scripts/post-mount ]; then
-				STARTUPLINECOUNT=$(grep -c '# '"$SCRIPT_NAME" /jffs/scripts/post-mount)
-				STARTUPLINECOUNTEX=$(grep -cx "/jffs/scripts/$SCRIPT_NAME startup"' "$@" & # '"$SCRIPT_NAME" /jffs/scripts/post-mount)
-				
-				if [ "$STARTUPLINECOUNT" -gt 1 ] || { [ "$STARTUPLINECOUNTEX" -eq 0 ] && [ "$STARTUPLINECOUNT" -gt 0 ]; }; then
+			if [ -f /jffs/scripts/post-mount ]
+			then
+				STARTUPLINECOUNT="$(grep -c '# '"$SCRIPT_NAME" /jffs/scripts/post-mount)"
+				STARTUPLINECOUNTEX="$(grep -cx "/jffs/scripts/$SCRIPT_NAME startup"' "$@" & # '"$SCRIPT_NAME" /jffs/scripts/post-mount)"
+
+				if [ "$STARTUPLINECOUNT" -gt 1 ] || { [ "$STARTUPLINECOUNTEX" -eq 0 ] && [ "$STARTUPLINECOUNT" -gt 0 ]; }
+				then
 					sed -i -e '/# '"$SCRIPT_NAME"'/d' /jffs/scripts/post-mount
 				fi
-				
-				if [ "$STARTUPLINECOUNTEX" -eq 0 ]; then
+
+				if [ "$STARTUPLINECOUNTEX" -eq 0 ]
+				then
 					echo "/jffs/scripts/$SCRIPT_NAME startup"' "$@" & # '"$SCRIPT_NAME" >> /jffs/scripts/post-mount
 				fi
 			else
@@ -532,17 +572,19 @@ Auto_Startup(){
 			fi
 		;;
 		delete)
-			if [ -f /jffs/scripts/services-start ]; then
-				STARTUPLINECOUNT=$(grep -c '# '"$SCRIPT_NAME" /jffs/scripts/services-start)
-				
-				if [ "$STARTUPLINECOUNT" -gt 0 ]; then
+			if [ -f /jffs/scripts/services-start ]
+			then
+				STARTUPLINECOUNT="$(grep -c '# '"$SCRIPT_NAME" /jffs/scripts/services-start)"
+				if [ "$STARTUPLINECOUNT" -gt 0 ]
+				then
 					sed -i -e '/# '"$SCRIPT_NAME"'/d' /jffs/scripts/services-start
 				fi
 			fi
-			if [ -f /jffs/scripts/post-mount ]; then
-				STARTUPLINECOUNT=$(grep -c '# '"$SCRIPT_NAME" /jffs/scripts/post-mount)
-				
-				if [ "$STARTUPLINECOUNT" -gt 0 ]; then
+			if [ -f /jffs/scripts/post-mount ]
+			then
+				STARTUPLINECOUNT="$(grep -c '# '"$SCRIPT_NAME" /jffs/scripts/post-mount)"
+				if [ "$STARTUPLINECOUNT" -gt 0 ]
+				then
 					sed -i -e '/# '"$SCRIPT_NAME"'/d' /jffs/scripts/post-mount
 				fi
 			fi
@@ -550,13 +592,49 @@ Auto_Startup(){
 	esac
 }
 
-### function based on @dave14305's FlexQoS webconfigpage function ###
 ##----------------------------------------##
 ## Modified by Martinski W. [2025-Jun-09] ##
+##----------------------------------------##
+Download_File()
+{ /usr/sbin/curl -LSs --retry 4 --retry-delay 5 --retry-connrefused "$1" -o "$2" ; }
+
+##-------------------------------------##
+## Added by Martinski W. [2025-Jun-15] ##
+##-------------------------------------##
+_Check_WebGUI_Page_Exists_()
+{
+   local webPageCnt  retCode
+   local wwwWebPageFilePath  scriptPageFilePath
+
+   wwwWebPageFilePath="/www/Main_LogStatus_Content.asp"
+   scriptPageFilePath="$SCRIPT_DIR/Main_LogStatus_Content.asp"
+
+   if [ ! -s "$scriptPageFilePath" ] || \
+      ! diff "$scriptPageFilePath" "$wwwWebPageFilePath" >/dev/null 2>&1
+   then return 1
+   fi
+
+   webPageCnt="$(grep -Ec "$webPageLineRegExp" "$wwwWebPageFilePath")"
+   if [ "$webPageCnt" -gt 3 ]
+   then retCode=0
+   else retCode=1
+   fi
+   return "$retCode"
+}
+
+### function based on @dave14305's FlexQoS webconfigpage function ###
+##----------------------------------------##
+## Modified by Martinski W. [2025-Jun-15] ##
 ##----------------------------------------##
 Get_WebUI_URL()
 {
 	local preURL  urlProto  urlDomain  urlPort  lanPort
+
+	if ! _Check_WebGUI_Page_Exists_
+	then
+        Print_Output false "**ERROR**: WebUI page NOT found" "$ERR"
+		return 1
+	fi
 
 	if [ "$(nvram get http_enable)" -eq 1 ]; then
 		urlProto="https"
@@ -581,18 +659,21 @@ Get_WebUI_URL()
 	echo "${preURL}/Main_LogStatus_Content.asp"
 }
 
-##----------------------------------------##
-## Modified by Martinski W. [2025-Jun-09] ##
-##----------------------------------------##
-Download_File()
-{ /usr/sbin/curl -LSs --retry 4 --retry-delay 5 --retry-connrefused "$1" -o "$2" ; }
-
 Mount_WebUI()
 {
 	Print_Output true "Mounting WebUI page for $SCRIPT_NAME" "$PASS"
 	umount /www/Main_LogStatus_Content.asp 2>/dev/null
 	mount -o bind "$SCRIPT_DIR/Main_LogStatus_Content.asp" /www/Main_LogStatus_Content.asp
 	Print_Output true "Mounted $SCRIPT_NAME WebUI page as Main_LogStatus_Content.asp" "$PASS"
+}
+
+##-------------------------------------##
+## Added by Martinski W. [2025-Jun-15] ##
+##-------------------------------------##
+_CheckFor_WebGUI_Page_()
+{
+   if ! _Check_WebGUI_Page_Exists_
+   then Mount_WebUI ; fi
 }
 
 Shortcut_Script()
@@ -651,26 +732,27 @@ MainMenu()
 {
 	Create_Dirs
 	Create_Symlinks
-	printf "WebUI for %s is available at:\\n${SETTING}%s${CLEARFORMAT}\\n\\n" "$SCRIPT_NAME" "$(Get_WebUI_URL)"
-	printf "1.    Customise list of logs displayed by %s\\n\\n" "$SCRIPT_NAME"
-	printf "rf.   Clear user preferences for displayed logs\\n\\n"
-	printf "u.    Check for updates\\n"
-	printf "uf.   Force update %s with latest version\\n\\n" "$SCRIPT_NAME"
-	printf "e.    Exit %s\\n\\n" "$SCRIPT_NAME"
-	printf "z.    Uninstall %s\\n" "$SCRIPT_NAME"
-	printf "\\n"
-	printf "${BOLD}########################################################${CLEARFORMAT}\\n"
-	printf "\\n"
-	
+	printf "WebUI for %s is available at:\n${SETTING}%s${CLEARFORMAT}\n\n" "$SCRIPT_NAME" "$(Get_WebUI_URL)"
+
+	printf "1.    Customise list of logs displayed by %s\n\n" "$SCRIPT_NAME"
+	printf "rf.   Clear user preferences for displayed logs\n\n"
+	printf "u.    Check for updates\n"
+	printf "uf.   Force update %s with latest version\n\n" "$SCRIPT_NAME"
+	printf "e.    Exit %s\n\n" "$SCRIPT_NAME"
+	printf "z.    Uninstall %s\n" "$SCRIPT_NAME"
+	printf "\n"
+	printf "${BOLD}########################################################${CLEARFORMAT}\n"
+	printf "\n"
+
 	while true
 	do
 		printf "Choose an option:  "
-		read -r menu
-		case "$menu" in
+		read -r menuOption
+		case "$menuOption" in
 			1)
 				if Check_Lock menu; then
 					Generate_Log_List
-					printf "\\n"
+					printf "\n"
 					Clear_Lock
 				fi
 				PressEnter
@@ -679,14 +761,14 @@ MainMenu()
 			rf)
 				if Check_Lock menu; then
 					Create_Symlinks force
-					printf "\\n"
+					printf "\n"
 					Clear_Lock force
 				fi
 				PressEnter
 				break
 			;;
 			u)
-				printf "\\n"
+				printf "\n"
 				if Check_Lock menu; then
 					Update_Version
 					Clear_Lock
@@ -695,7 +777,7 @@ MainMenu()
 				break
 			;;
 			uf)
-				printf "\\n"
+				printf "\n"
 				if Check_Lock menu; then
 					Update_Version force
 					Clear_Lock
@@ -705,12 +787,12 @@ MainMenu()
 			;;
 			e)
 				ScriptHeader
-				printf "\\n${BOLD}Thanks for using %s!${CLEARFORMAT}\\n\\n\\n" "$SCRIPT_NAME"
+				printf "\n${BOLD}Thanks for using %s!${CLEARFORMAT}\n\n\n" "$SCRIPT_NAME"
 				exit 0
 			;;
 			z)
 				while true; do
-					printf "\\n${BOLD}Are you sure you want to uninstall %s? (y/n)${CLEARFORMAT}  " "$SCRIPT_NAME"
+					printf "\n${BOLD}Are you sure you want to uninstall %s? (y/n)${CLEARFORMAT}  " "$SCRIPT_NAME"
 					read -r confirm
 					case "$confirm" in
 						y|Y)
@@ -725,40 +807,45 @@ MainMenu()
 				break
 			;;
 			*)
-				printf "\\nPlease choose a valid option\\n\\n"
+				printf "\nPlease choose a valid option\n\n"
 			;;
 		esac
 	done
-	
+
 	ScriptHeader
 	MainMenu
 }
 
-Check_Requirements(){
+Check_Requirements()
+{
 	CHECKSFAILED="false"
-	
-	if [ "$(nvram get jffs2_scripts)" -ne 1 ]; then
+
+	if [ "$(nvram get jffs2_scripts)" -ne 1 ]
+	then
 		nvram set jffs2_scripts=1
 		nvram commit
 		Print_Output true "Custom JFFS Scripts enabled" "$WARN"
 	fi
-	
-	if [ ! -f /opt/bin/opkg ]; then
-		Print_Output false "Entware not detected!" "$ERR"
+
+	if [ ! -f /opt/bin/opkg ]
+	then
+		Print_Output false "Entware is NOT detected!" "$ERR"
 		CHECKSFAILED="true"
 	fi
-	
-	if [ ! -f /opt/bin/scribe ]; then
-		Print_Output false "Scribe not installed!" "$ERR"
+
+	if [ ! -f /opt/bin/scribe ]
+	then
+		Print_Output false "Scribe is NOT installed!" "$ERR"
 		CHECKSFAILED="true"
 	fi
-	
-	if ! Firmware_Version_Check; then
+
+	if ! Firmware_Version_Check
+	then
 		Print_Output false "Unsupported firmware version detected" "$ERR"
 		Print_Output false "$SCRIPT_NAME requires Merlin 384.15/384.13_4 or Fork 43E5 (or later)" "$ERR"
 		CHECKSFAILED="true"
 	fi
-	
+
 	if [ "$CHECKSFAILED" = "false" ]; then
 		return 0
 	else
@@ -780,7 +867,7 @@ Menu_Install()
 	if ! Check_Requirements
 	then
 		Print_Output false "Requirements for $SCRIPT_NAME not met, please see above for the reason(s)" "$CRIT"
-		PressEnter
+		PressEnter ; echo
 		Clear_Lock
 		rm -f "/jffs/scripts/$SCRIPT_NAME" 2>/dev/null
 		exit 1
@@ -956,6 +1043,9 @@ then SCRIPT_VERS_INFO=""
 else SCRIPT_VERS_INFO="$scriptVERINFO"
 fi
 
+##----------------------------------------##
+## Modified by Martinski W. [2025-Jun-15] ##
+##----------------------------------------##
 if [ $# -eq 0 ] || [ -z "$1" ]
 then
 	NTP_Ready
@@ -966,6 +1056,7 @@ then
 	Auto_Startup create 2>/dev/null
 	Auto_ServiceEvent create 2>/dev/null
 	Shortcut_Script create
+	_CheckFor_WebGUI_Page_
 	ScriptHeader
 	MainMenu
 	exit 0
