@@ -13,7 +13,7 @@
 ##  Forked from https://github.com/jackyaz/uiScribe   ##
 ##                                                    ##
 ########################################################
-# Last Modified: 2025-Jun-15
+# Last Modified: 2025-Jun-27
 #-------------------------------------------------------
 
 ###########        Shellcheck directives      ##########
@@ -30,7 +30,7 @@
 ### Start of script variables ###
 readonly SCRIPT_NAME="uiScribe"
 readonly SCRIPT_VERSION="v1.4.7"
-readonly SCRIPT_VERSTAG="25061523"
+readonly SCRIPT_VERSTAG="25062721"
 SCRIPT_BRANCH="master"
 SCRIPT_REPO="https://raw.githubusercontent.com/AMTM-OSR/$SCRIPT_NAME/$SCRIPT_BRANCH"
 readonly SCRIPT_DIR="/jffs/addons/$SCRIPT_NAME.d"
@@ -103,7 +103,8 @@ Check_Lock()
 	if [ -f "/tmp/$SCRIPT_NAME.lock" ]
 	then
 		ageoflock=$(($(date +%s) - $(date +%s -r /tmp/$SCRIPT_NAME.lock)))
-		if [ "$ageoflock" -gt 600 ]; then
+		if [ "$ageoflock" -gt 600 ]
+		then
 			Print_Output true "Stale lock file found (>600 seconds old) - purging lock" "$ERR"
 			kill "$(sed -n '1p' /tmp/$SCRIPT_NAME.lock)" >/dev/null 2>&1
 			Clear_Lock
@@ -111,7 +112,8 @@ Check_Lock()
 			return 0
 		else
 			Print_Output true "Lock file found (age: $ageoflock seconds) - stopping to prevent duplicate runs" "$ERR"
-			if [ -z "$1" ]; then
+			if [ $# -eq 0 ] || [ -z "$1" ]
+			then
 				exit 1
 			else
 				return 1
@@ -123,7 +125,8 @@ Check_Lock()
 	fi
 }
 
-Clear_Lock(){
+Clear_Lock()
+{
 	rm -f "/tmp/$SCRIPT_NAME.lock" 2>/dev/null
 	return 0
 }
@@ -429,12 +432,13 @@ Logs_FromSettings()
 			done
 
 			awk 'NF' "$LOGS_USER" > /tmp/uiscribe-logs
-			mv /tmp/uiscribe-logs "$LOGS_USER"
+			mv -f /tmp/uiscribe-logs "$LOGS_USER"
 
 			rm -f "$SCRIPT_WEB_DIR/"*.htm 2>/dev/null
 			ln -s "$SCRIPT_DIR/.logs_user" "$SCRIPT_WEB_DIR/logs.htm" 2>/dev/null
 			ln -s /opt/var/log/messages "$SCRIPT_WEB_DIR/messages.htm" 2>/dev/null
-			while IFS='' read -r line || [ -n "$line" ]; do
+			while IFS='' read -r line || [ -n "$line" ]
+			do
 				ln -s "$line" "$SCRIPT_WEB_DIR/$(basename "$line").htm" 2>/dev/null
 			done < "$SCRIPT_DIR/.logs"
 
@@ -445,14 +449,17 @@ Logs_FromSettings()
 	fi
 }
 
+##----------------------------------------##
+## Modified by Martinski W. [2025-Jun-18] ##
+##----------------------------------------##
 Generate_Log_List()
 {
 	ScriptHeader
-	goback="false"
+	goback=false
 	printf "Retrieving list of log files...\n\n"
-	logcount="$(wc -l < "$SCRIPT_DIR/.logs_user")"
+	logCount="$(wc -l < "$SCRIPT_DIR/.logs_user")"
 	COUNTER=1
-	until [ "$COUNTER" -gt "$logcount" ]
+	until [ "$COUNTER" -gt "$logCount" ]
 	do
 		logfile="$(sed "$COUNTER!d" "$SCRIPT_DIR/.logs_user" | awk '{$1=$1};1')"
 		if [ "$COUNTER" -lt 10 ]; then
@@ -466,27 +473,31 @@ Generate_Log_List()
 
 	while true
 	do
-		printf "\n${BOLD}Please select a log to toggle inclusion in %s [1-%s]:${CLEARFORMAT}  " "$SCRIPT_NAME" "$logcount"
-		read -r log
+		printf "\n${BOLD}Please select a log to toggle inclusion in %s [1-%s]:${CLEARFORMAT}  " "$SCRIPT_NAME" "$logCount"
+		read -r logNum
 
-		if [ "$log" = "e" ]
+		if [ "$logNum" = "e" ]
 		then
-			goback="true"
+			goback=true
 			break
-		elif ! Validate_Number "$log"
+		elif ! Validate_Number "$logNum"
 		then
-			printf "\n${ERR}Please enter a valid number [1-%s]${CLEARFORMAT}\n" "$logcount"
+			printf "\n${ERR}Please enter a valid number [1-%s]${CLEARFORMAT}\n" "$logCount"
+			PressEnter
+			break
 		else
-			if [ "$log" -lt 1 ] || [ "$log" -gt "$logcount" ]
+			if [ "$logNum" -lt 1 ] || [ "$logNum" -gt "$logCount" ]
 			then
-				printf "\n${ERR}Please enter a number between 1 and %s${CLEARFORMAT}\n" "$logcount"
+				printf "\n${ERR}Please enter a number between 1 and %s${CLEARFORMAT}\n" "$logCount"
+				PressEnter
+				break
 			else
-				logline="$(sed "$log!d" "$SCRIPT_DIR/.logs_user" | awk '{$1=$1};1')"
-				if echo "$logline" | grep -q "#excluded#"
+				logLine="$(sed "$logNum!d" "$SCRIPT_DIR/.logs_user" | awk '{$1=$1};1')"
+				if echo "$logLine" | grep -q "#excluded#"
 				then
-					sed -i "$log"'s/ #excluded#//' "$SCRIPT_DIR/.logs_user"
+					sed -i "$logNum"'s/ #excluded#//' "$SCRIPT_DIR/.logs_user"
 				else
-					sed -i "$log"'s/$/ #excluded#/' "$SCRIPT_DIR/.logs_user"
+					sed -i "$logNum"'s/$/ #excluded#/' "$SCRIPT_DIR/.logs_user"
 				fi
 				sed -i 's/ *$//' "$SCRIPT_DIR/.logs_user"
 				printf "\n"
@@ -500,14 +511,18 @@ Generate_Log_List()
 	fi
 }
 
+##----------------------------------------##
+## Modified by Martinski W. [2025-Jun-18] ##
+##----------------------------------------##
 Auto_ServiceEvent()
 {
+	local theScriptFilePath="/jffs/scripts/$SCRIPT_NAME"
 	case $1 in
 		create)
 			if [ -f /jffs/scripts/service-event ]
 			then
 				STARTUPLINECOUNT="$(grep -c '# '"$SCRIPT_NAME" /jffs/scripts/service-event)"
-				STARTUPLINECOUNTEX="$(grep -cx 'if echo "$2" | /bin/grep -q "'"$SCRIPT_NAME"'"; then { /jffs/scripts/'"$SCRIPT_NAME"' service_event "$@" & }; fi # '"$SCRIPT_NAME" /jffs/scripts/service-event)"
+				STARTUPLINECOUNTEX="$(grep -cx 'if echo "$2" | /bin/grep -q "'"$SCRIPT_NAME"'"; then { '"$theScriptFilePath"' service_event "$@" & }; fi # '"$SCRIPT_NAME" /jffs/scripts/service-event)"
 
 				if [ "$STARTUPLINECOUNT" -gt 1 ] || { [ "$STARTUPLINECOUNTEX" -eq 0 ] && [ "$STARTUPLINECOUNT" -gt 0 ]; }
 				then
@@ -516,12 +531,16 @@ Auto_ServiceEvent()
 
 				if [ "$STARTUPLINECOUNTEX" -eq 0 ]
 				then
-					echo 'if echo "$2" | /bin/grep -q "'"$SCRIPT_NAME"'"; then { /jffs/scripts/'"$SCRIPT_NAME"' service_event "$@" & }; fi # '"$SCRIPT_NAME" >> /jffs/scripts/service-event
+					{
+					  echo 'if echo "$2" | /bin/grep -q "'"$SCRIPT_NAME"'"; then { '"$theScriptFilePath"' service_event "$@" & }; fi # '"$SCRIPT_NAME" 
+					} >> /jffs/scripts/service-event
 				fi
 			else
-				echo "#!/bin/sh" > /jffs/scripts/service-event
-				echo "" >> /jffs/scripts/service-event
-				echo 'if echo "$2" | /bin/grep -q "'"$SCRIPT_NAME"'"; then { /jffs/scripts/'"$SCRIPT_NAME"' service_event "$@" & }; fi # '"$SCRIPT_NAME" >> /jffs/scripts/service-event
+				{
+				  echo "#!/bin/sh" ; echo
+				  echo 'if echo "$2" | /bin/grep -q "'"$SCRIPT_NAME"'"; then { '"$theScriptFilePath"' service_event "$@" & }; fi # '"$SCRIPT_NAME"
+				  echo
+				} > /jffs/scripts/service-event
 				chmod 0755 /jffs/scripts/service-event
 			fi
 		;;
@@ -538,8 +557,12 @@ Auto_ServiceEvent()
 	esac
 }
 
+##----------------------------------------##
+## Modified by Martinski W. [2025-Jun-27] ##
+##----------------------------------------##
 Auto_Startup()
 {
+	local theScriptFilePath="/jffs/scripts/$SCRIPT_NAME"
 	case $1 in
 		create)
 			if [ -f /jffs/scripts/services-start ]
@@ -553,7 +576,7 @@ Auto_Startup()
 			if [ -f /jffs/scripts/post-mount ]
 			then
 				STARTUPLINECOUNT="$(grep -c '# '"$SCRIPT_NAME" /jffs/scripts/post-mount)"
-				STARTUPLINECOUNTEX="$(grep -cx "/jffs/scripts/$SCRIPT_NAME startup"' "$@" & # '"$SCRIPT_NAME" /jffs/scripts/post-mount)"
+				STARTUPLINECOUNTEX="$(grep -cx '\[ -x "${1}/entware/bin/opkg" \] && \[ -x '"$theScriptFilePath"' \] && '"$theScriptFilePath"' startup "$@" & # '"$SCRIPT_NAME" /jffs/scripts/post-mount)"
 
 				if [ "$STARTUPLINECOUNT" -gt 1 ] || { [ "$STARTUPLINECOUNTEX" -eq 0 ] && [ "$STARTUPLINECOUNT" -gt 0 ]; }
 				then
@@ -562,12 +585,16 @@ Auto_Startup()
 
 				if [ "$STARTUPLINECOUNTEX" -eq 0 ]
 				then
-					echo "/jffs/scripts/$SCRIPT_NAME startup"' "$@" & # '"$SCRIPT_NAME" >> /jffs/scripts/post-mount
+					{
+					  echo '[ -x "${1}/entware/bin/opkg" ] && [ -x '"$theScriptFilePath"' ] && '"$theScriptFilePath"' startup "$@" & # '"$SCRIPT_NAME"
+					} >> /jffs/scripts/post-mount
 				fi
 			else
-				echo "#!/bin/sh" > /jffs/scripts/post-mount
-				echo "" >> /jffs/scripts/post-mount
-				echo "/jffs/scripts/$SCRIPT_NAME startup"' "$@" & # '"$SCRIPT_NAME" >> /jffs/scripts/post-mount
+				{
+				  echo "#!/bin/sh" ; echo
+				  echo '[ -x "${1}/entware/bin/opkg" ] && [ -x '"$theScriptFilePath"' ] && '"$theScriptFilePath"' startup "$@" & # '"$SCRIPT_NAME"
+				  echo
+				} > /jffs/scripts/post-mount
 				chmod 0755 /jffs/scripts/post-mount
 			fi
 		;;
@@ -610,6 +637,7 @@ _Check_WebGUI_Page_Exists_()
    scriptPageFilePath="$SCRIPT_DIR/Main_LogStatus_Content.asp"
 
    if [ ! -s "$scriptPageFilePath" ] || \
+      [ ! -s "$wwwWebPageFilePath" ] || \
       ! diff "$scriptPageFilePath" "$wwwWebPageFilePath" >/dev/null 2>&1
    then return 1
    fi
@@ -632,7 +660,7 @@ Get_WebUI_URL()
 
 	if ! _Check_WebGUI_Page_Exists_
 	then
-        Print_Output false "**ERROR**: WebUI page NOT found" "$ERR"
+		Print_Output false "**ERROR**: WebUI page NOT found" "$ERR"
 		return 1
 	fi
 
@@ -659,11 +687,29 @@ Get_WebUI_URL()
 	echo "${preURL}/Main_LogStatus_Content.asp"
 }
 
+##----------------------------------------##
+## Modified by Martinski W. [2025-Jun-27] ##
+##----------------------------------------##
 Mount_WebUI()
 {
-	Print_Output true "Mounting WebUI page for $SCRIPT_NAME" "$PASS"
-	umount /www/Main_LogStatus_Content.asp 2>/dev/null
-	mount -o bind "$SCRIPT_DIR/Main_LogStatus_Content.asp" /www/Main_LogStatus_Content.asp
+	local wwwWebPageFilePath  scriptPageFilePath
+	wwwWebPageFilePath="/www/Main_LogStatus_Content.asp"
+	scriptPageFilePath="$SCRIPT_DIR/Main_LogStatus_Content.asp"
+
+	Print_Output true "Mounting WebUI tab for $SCRIPT_NAME" "$PASS"
+	if [ ! -s "$scriptPageFilePath" ]
+	then
+		Print_Output true "**ERROR1**: Unable to mount $SCRIPT_NAME WebUI page." "$CRIT"
+		return 1
+	fi
+	if [ ! -s "$wwwWebPageFilePath" ]
+	then
+		Print_Output true "**ERROR2**: Unable to mount $SCRIPT_NAME WebUI page." "$CRIT"
+		return 1
+	fi
+
+	umount "$wwwWebPageFilePath" 2>/dev/null
+	mount -o bind "$scriptPageFilePath" "$wwwWebPageFilePath"
 	Print_Output true "Mounted $SCRIPT_NAME WebUI page as Main_LogStatus_Content.asp" "$PASS"
 }
 
@@ -680,7 +726,8 @@ Shortcut_Script()
 {
 	case $1 in
 		create)
-			if [ -d /opt/bin ] && [ ! -f "/opt/bin/$SCRIPT_NAME" ] && [ -f "/jffs/scripts/$SCRIPT_NAME" ]; then
+			if [ -d /opt/bin ] && [ ! -f "/opt/bin/$SCRIPT_NAME" ] && [ -f "/jffs/scripts/$SCRIPT_NAME" ]
+			then
 				ln -s "/jffs/scripts/$SCRIPT_NAME" /opt/bin
 				chmod 0755 "/opt/bin/$SCRIPT_NAME"
 			fi
@@ -728,6 +775,9 @@ ScriptHeader()
 	printf "\n"
 }
 
+##----------------------------------------##
+## Modified by Martinski W. [2025-Jun-18] ##
+##----------------------------------------##
 MainMenu()
 {
 	Create_Dirs
@@ -750,7 +800,8 @@ MainMenu()
 		read -r menuOption
 		case "$menuOption" in
 			1)
-				if Check_Lock menu; then
+				if Check_Lock menu
+				then
 					Generate_Log_List
 					printf "\n"
 					Clear_Lock
@@ -759,7 +810,8 @@ MainMenu()
 				break
 			;;
 			rf)
-				if Check_Lock menu; then
+				if Check_Lock menu
+				then
 					Create_Symlinks force
 					printf "\n"
 					Clear_Lock force
@@ -769,7 +821,8 @@ MainMenu()
 			;;
 			u)
 				printf "\n"
-				if Check_Lock menu; then
+				if Check_Lock menu
+				then
 					Update_Version
 					Clear_Lock
 				fi
@@ -778,7 +831,8 @@ MainMenu()
 			;;
 			uf)
 				printf "\n"
-				if Check_Lock menu; then
+				if Check_Lock menu
+				then
 					Update_Version force
 					Clear_Lock
 				fi
@@ -791,7 +845,8 @@ MainMenu()
 				exit 0
 			;;
 			z)
-				while true; do
+				while true
+				do
 					printf "\n${BOLD}Are you sure you want to uninstall %s? (y/n)${CLEARFORMAT}  " "$SCRIPT_NAME"
 					read -r confirm
 					case "$confirm" in
@@ -807,7 +862,11 @@ MainMenu()
 				break
 			;;
 			*)
-				printf "\nPlease choose a valid option\n\n"
+				[ -n "$menuOption" ] && \
+				printf "\n${ERR}INVALID input [$menuOption]${CLEARFORMAT}"
+				printf "\nPlease choose a valid option.\n\n"
+				PressEnter
+				break
 			;;
 		esac
 	done
@@ -912,9 +971,7 @@ Menu_Startup()
 	fi
 
 	NTP_Ready
-
 	Check_Lock
-
 	Create_Dirs
 	Create_Symlinks
 	Auto_Startup create 2>/dev/null
@@ -1062,6 +1119,9 @@ then
 	exit 0
 fi
 
+##----------------------------------------##
+## Modified by Martinski W. [2025-Jun-27] ##
+##----------------------------------------##
 case "$1" in
 	install)
 		Check_Lock
@@ -1069,19 +1129,20 @@ case "$1" in
 		exit 0
 	;;
 	startup)
-		Menu_Startup "$2"
+		shift
+		Menu_Startup "$@"
 		exit 0
 	;;
 	service_event)
-		if [ "$2" = "start" ] && [ "$3" = "${SCRIPT_NAME}config" ]; then
+		if [ "$2" = "start" ] && [ "$3" = "${SCRIPT_NAME}config" ]
+		then
 			Logs_FromSettings
-			exit 0
-		elif [ "$2" = "start" ] && [ "$3" = "${SCRIPT_NAME}checkupdate" ]; then
+		elif [ "$2" = "start" ] && [ "$3" = "${SCRIPT_NAME}checkupdate" ]
+		then
 			Update_Check
-			exit 0
-		elif [ "$2" = "start" ] && [ "$3" = "${SCRIPT_NAME}doupdate" ]; then
+		elif [ "$2" = "start" ] && [ "$3" = "${SCRIPT_NAME}doupdate" ]
+		then
 			Update_Version force unattended
-			exit 0
 		fi
 		exit 0
 	;;
