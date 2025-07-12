@@ -13,7 +13,7 @@
 ##  Forked from https://github.com/jackyaz/uiScribe   ##
 ##                                                    ##
 ########################################################
-# Last Modified: 2025-Jun-27
+# Last Modified: 2025-Jul-11
 #-------------------------------------------------------
 
 ###########        Shellcheck directives      ##########
@@ -29,9 +29,9 @@
 
 ### Start of script variables ###
 readonly SCRIPT_NAME="uiScribe"
-readonly SCRIPT_VERSION="v1.4.7"
-readonly SCRIPT_VERSTAG="25062721"
-SCRIPT_BRANCH="master"
+readonly SCRIPT_VERSION="v1.4.8"
+readonly SCRIPT_VERSTAG="25071122"
+SCRIPT_BRANCH="develop"
 SCRIPT_REPO="https://raw.githubusercontent.com/AMTM-OSR/$SCRIPT_NAME/$SCRIPT_BRANCH"
 readonly SCRIPT_DIR="/jffs/addons/$SCRIPT_NAME.d"
 readonly SCRIPT_PAGE_DIR="$(readlink -f /www/user)"
@@ -58,6 +58,8 @@ readonly PASS="\\e[32m"
 readonly BOLD="\\e[1m"
 readonly SETTING="${BOLD}\\e[36m"
 readonly CLEARFORMAT="\\e[0m"
+readonly MGNTct="\e[1;35m"
+readonly CLRct="\e[0m"
 ### End of output format variables ###
 
 # Give priority to built-in binaries #
@@ -1049,12 +1051,12 @@ Entware_Ready()
 
 ### function based on @dave14305's FlexQoS about function ###
 ##----------------------------------------##
-## Modified by Martinski W. [2025-Jun-09] ##
+## Modified by Martinski W. [2025-Jul-09] ##
 ##----------------------------------------##
 Show_About()
 {
+	printf "About ${MGNTct}${SCRIPT_VERS_INFO}${CLRct}\n"
 	cat <<EOF
-About $SCRIPT_VERS_INFO
   $SCRIPT_NAME updates the System Log page to show log files created
   by Scribe (syslog-ng). Requires Scribe https://github.com/AMTM-OSR/scribe
 
@@ -1073,21 +1075,21 @@ EOF
 
 ### function based on @dave14305's FlexQoS show_help function ###
 ##----------------------------------------##
-## Modified by Martinski W. [2025-Jun-09] ##
+## Modified by Martinski W. [2025-Jul-09] ##
 ##----------------------------------------##
 Show_Help()
 {
+	printf "HELP ${MGNTct}${SCRIPT_VERS_INFO}${CLRct}\n"
 	cat <<EOF
-HELP $SCRIPT_VERS_INFO
 Available commands:
-  $SCRIPT_NAME about              explains functionality
-  $SCRIPT_NAME update             checks for updates
-  $SCRIPT_NAME forceupdate        updates to latest version (force update)
-  $SCRIPT_NAME startup force      runs startup actions such as mount WebUI tab
-  $SCRIPT_NAME install            installs script
-  $SCRIPT_NAME uninstall          uninstalls script
-  $SCRIPT_NAME develop            switch to development branch
-  $SCRIPT_NAME stable             switch to stable branch
+  $SCRIPT_NAME about            explains functionality
+  $SCRIPT_NAME update           checks for updates
+  $SCRIPT_NAME forceupdate      updates to latest version (force update)
+  $SCRIPT_NAME startup force    runs startup actions such as mount WebUI tab
+  $SCRIPT_NAME install          installs script
+  $SCRIPT_NAME uninstall        uninstalls script
+  $SCRIPT_NAME develop          switch to development branch version
+  $SCRIPT_NAME stable           switch to stable/production branch version
 EOF
 	printf "\n"
 }
@@ -1203,7 +1205,7 @@ case "$1" in
 	*)
 		ScriptHeader
 		Print_Output false "Parameter [$*] is NOT recognised." "$ERR"
-		Print_Output false "For a list of available commands run: $SCRIPT_NAME help"
+		Print_Output false "For a list of available commands run: $SCRIPT_NAME help" "$SETTING"
 		exit 1
 	;;
 esac
