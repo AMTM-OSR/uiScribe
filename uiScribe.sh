@@ -13,7 +13,7 @@
 ##  Forked from https://github.com/jackyaz/uiScribe   ##
 ##                                                    ##
 ########################################################
-# Last Modified: 2025-Jul-11
+# Last Modified: 2025-Jul-20
 #-------------------------------------------------------
 
 ###########        Shellcheck directives      ##########
@@ -30,7 +30,7 @@
 ### Start of script variables ###
 readonly SCRIPT_NAME="uiScribe"
 readonly SCRIPT_VERSION="v1.4.8"
-readonly SCRIPT_VERSTAG="25071122"
+readonly SCRIPT_VERSTAG="25072022"
 SCRIPT_BRANCH="develop"
 SCRIPT_REPO="https://raw.githubusercontent.com/AMTM-OSR/$SCRIPT_NAME/$SCRIPT_BRANCH"
 readonly SCRIPT_DIR="/jffs/addons/$SCRIPT_NAME.d"
@@ -46,7 +46,8 @@ readonly SHARED_WEB_DIR="$SCRIPT_PAGE_DIR/shared-jy"
 ##-------------------------------------##
 readonly scriptVersRegExp="v[0-9]{1,2}([.][0-9]{1,2})([.][0-9]{1,2})"
 readonly webPageLineRegExp="(Scribe|uiScribe|uiscribe_version_server)"
-readonly scriptVERINFO="[${SCRIPT_VERSION}_${SCRIPT_VERSTAG}, Branch: $SCRIPT_BRANCH]"
+readonly branchx_TAG="Branch: $SCRIPT_BRANCH"
+readonly version_TAG="${SCRIPT_VERSION}_${SCRIPT_VERSTAG}"
 
 ### End of script variables ###
 
@@ -1097,9 +1098,9 @@ EOF
 ##-------------------------------------##
 ## Added by Martinski W. [2025-Jun-09] ##
 ##-------------------------------------##
-if [ "$SCRIPT_BRANCH" != "develop" ]
-then SCRIPT_VERS_INFO=""
-else SCRIPT_VERS_INFO="$scriptVERINFO"
+if [ "$SCRIPT_BRANCH" = "master" ]
+then SCRIPT_VERS_INFO="[$branchx_TAG]"
+else SCRIPT_VERS_INFO="[$version_TAG, $branchx_TAG]"
 fi
 
 ##----------------------------------------##
