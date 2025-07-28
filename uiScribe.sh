@@ -13,7 +13,7 @@
 ##  Forked from https://github.com/jackyaz/uiScribe   ##
 ##                                                    ##
 ########################################################
-# Last Modified: 2025-Jul-20
+# Last Modified: 2025-Jul-27
 #-------------------------------------------------------
 
 ###########        Shellcheck directives      ##########
@@ -30,7 +30,7 @@
 ### Start of script variables ###
 readonly SCRIPT_NAME="uiScribe"
 readonly SCRIPT_VERSION="v1.4.8"
-readonly SCRIPT_VERSTAG="25072022"
+readonly SCRIPT_VERSTAG="25072723"
 SCRIPT_BRANCH="develop"
 SCRIPT_REPO="https://raw.githubusercontent.com/AMTM-OSR/$SCRIPT_NAME/$SCRIPT_BRANCH"
 readonly SCRIPT_DIR="/jffs/addons/$SCRIPT_NAME.d"
@@ -1001,50 +1001,71 @@ Menu_Uninstall()
 	Print_Output true "Uninstall completed" "$PASS"
 }
 
+##----------------------------------------##
+## Modified by Martinski W. [2025-Jul-27] ##
+##----------------------------------------##
 NTP_Ready()
 {
+	local theSleepDelay=15  ntpMaxWaitSecs=600  ntpWaitSecs
+
 	if [ "$(nvram get ntp_ready)" -eq 0 ]
 	then
-		ntpwaitcount=0
 		Check_Lock
-		while [ "$(nvram get ntp_ready)" -eq 0 ] && [ "$ntpwaitcount" -lt 600 ]
+		ntpWaitSecs=0
+		Print_Output true "Waiting for NTP to sync..." "$WARN"
+
+		while [ "$(nvram get ntp_ready)" -eq 0 ] && [ "$ntpWaitSecs" -lt "$ntpMaxWaitSecs" ]
 		do
-			ntpwaitcount="$((ntpwaitcount + 30))"
-			Print_Output true "Waiting for NTP to sync..." "$WARN"
-			sleep 30
+			if [ "$ntpWaitSecs" -gt 0 ] && [ "$((ntpWaitSecs % 30))" -eq 0 ]
+			then
+			    Print_Output true "Waiting for NTP to sync [$ntpWaitSecs secs]..." "$WARN"
+			fi
+			sleep "$theSleepDelay"
+			ntpWaitSecs="$((ntpWaitSecs + theSleepDelay))"
 		done
-		if [ "$ntpwaitcount" -ge 600 ]
+
+		if [ "$ntpWaitSecs" -ge "$ntpMaxWaitSecs" ]
 		then
 			Print_Output true "NTP failed to sync after 10 minutes. Please resolve!" "$CRIT"
 			Clear_Lock
 			exit 1
 		else
-			Print_Output true "NTP synced, $SCRIPT_NAME will now continue" "$PASS"
+			Print_Output true "NTP has synced [$ntpWaitSecs secs]. $SCRIPT_NAME will now continue." "$PASS"
 			Clear_Lock
 		fi
 	fi
 }
 
 ### function based on @Adamm00's Skynet USB wait function ###
+##----------------------------------------##
+## Modified by Martinski W. [2025-Jul-27] ##
+##----------------------------------------##
 Entware_Ready()
 {
+	local theSleepDelay=5  maxSleepTimer=120  sleepTimerSecs
+
 	if [ ! -f /opt/bin/opkg ]
 	then
 		Check_Lock
-		sleepcount=1
-		while [ ! -f /opt/bin/opkg ] && [ "$sleepcount" -le 10 ]
+		sleepTimerSecs=0
+
+		while [ ! -f /opt/bin/opkg ] && [ "$sleepTimerSecs" -lt "$maxSleepTimer" ]
 		do
-			Print_Output true "Entware NOT found, sleeping for 10s (attempt $sleepcount of 10)" "$ERR"
-			sleepcount="$((sleepcount + 1))"
-			sleep 10
+			if [ "$((sleepTimerSecs % 10))" -eq 0 ]
+			then
+			    Print_Output true "Entware NOT found. Wait for Entware to be ready [$sleepTimerSecs secs]..." "$WARN"
+			fi
+			sleep "$theSleepDelay"
+			sleepTimerSecs="$((sleepTimerSecs + theSleepDelay))"
 		done
+
 		if [ ! -f /opt/bin/opkg ]
 		then
 			Print_Output true "Entware NOT found and is required for $SCRIPT_NAME to run, please resolve!" "$CRIT"
 			Clear_Lock
 			exit 1
 		else
-			Print_Output true "Entware found, $SCRIPT_NAME will now continue" "$PASS"
+			Print_Output true "Entware found [$sleepTimerSecs secs]. $SCRIPT_NAME will now continue." "$PASS"
 			Clear_Lock
 		fi
 	fi
