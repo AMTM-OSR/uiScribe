@@ -13,7 +13,7 @@
 ##  Forked from https://github.com/jackyaz/uiScribe   ##
 ##                                                    ##
 ########################################################
-# Last Modified: 2025-Jun-27
+# Last Modified: 2025-Aug-23
 #-------------------------------------------------------
 
 ###########        Shellcheck directives      ##########
@@ -29,9 +29,9 @@
 
 ### Start of script variables ###
 readonly SCRIPT_NAME="uiScribe"
-readonly SCRIPT_VERSION="v1.4.7"
-readonly SCRIPT_VERSTAG="25062721"
-SCRIPT_BRANCH="master"
+readonly SCRIPT_VERSION="v1.4.8"
+readonly SCRIPT_VERSTAG="25082322"
+SCRIPT_BRANCH="develop"
 SCRIPT_REPO="https://raw.githubusercontent.com/AMTM-OSR/$SCRIPT_NAME/$SCRIPT_BRANCH"
 readonly SCRIPT_DIR="/jffs/addons/$SCRIPT_NAME.d"
 readonly SCRIPT_PAGE_DIR="$(readlink -f /www/user)"
@@ -46,7 +46,9 @@ readonly SHARED_WEB_DIR="$SCRIPT_PAGE_DIR/shared-jy"
 ##-------------------------------------##
 readonly scriptVersRegExp="v[0-9]{1,2}([.][0-9]{1,2})([.][0-9]{1,2})"
 readonly webPageLineRegExp="(Scribe|uiScribe|uiscribe_version_server)"
-readonly scriptVERINFO="[${SCRIPT_VERSION}_${SCRIPT_VERSTAG}, Branch: $SCRIPT_BRANCH]"
+readonly branchxStr_TAG="[Branch: $SCRIPT_BRANCH]"
+readonly versionDev_TAG="${SCRIPT_VERSION}_${SCRIPT_VERSTAG}"
+readonly versionMod_TAG="$SCRIPT_VERSION on $ROUTER_MODEL"
 
 ### End of script variables ###
 
@@ -58,6 +60,9 @@ readonly PASS="\\e[32m"
 readonly BOLD="\\e[1m"
 readonly SETTING="${BOLD}\\e[36m"
 readonly CLEARFORMAT="\\e[0m"
+readonly GRNct="\e[1;32m"
+readonly MGNTct="\e[1;35m"
+readonly CLRct="\e[0m"
 ### End of output format variables ###
 
 # Give priority to built-in binaries #
@@ -85,7 +90,9 @@ Print_Output()
 		esac
 		logger -t "$SCRIPT_NAME" -p $prioNum "$2"
 	fi
-	printf "${BOLD}${3}%s${CLEARFORMAT}\n\n" "$2"
+	printf "${BOLD}${3}%s${CLRct}\n" "$2"
+	if [ $# -lt 4 ] || [ "$4" != "oneline" ]
+	then echo ; fi
 }
 
 Firmware_Version_Check()
@@ -696,7 +703,7 @@ Mount_WebUI()
 	wwwWebPageFilePath="/www/Main_LogStatus_Content.asp"
 	scriptPageFilePath="$SCRIPT_DIR/Main_LogStatus_Content.asp"
 
-	Print_Output true "Mounting WebUI tab for $SCRIPT_NAME" "$PASS"
+	Print_Output true "Mounting WebUI tab for $SCRIPT_NAME" "$PASS" oneline
 	if [ ! -s "$scriptPageFilePath" ]
 	then
 		Print_Output true "**ERROR1**: Unable to mount $SCRIPT_NAME WebUI page." "$CRIT"
@@ -753,26 +760,54 @@ PressEnter()
 	return 0
 }
 
+##-------------------------------------##
+## Added by Martinski W. [2025-Aug-23] ##
+##-------------------------------------##
+_CenterTextStr_()
+{
+    if [ $# -lt 2 ] || [ -z "$1" ] || [ -z "$2" ] || \
+       ! echo "$2" | grep -qE "^[1-9][0-9]+$"
+    then echo ; return 1
+    fi
+    local stringLen="${#1}"
+    local space1Len="$((($2 - stringLen)/2))"
+    local space2Len="$space1Len"
+    local totalLen="$((space1Len + stringLen + space2Len))"
+
+    if [ "$totalLen" -lt "$2" ]
+    then space2Len="$((space2Len + 1))"
+    elif [ "$totalLen" -gt "$2" ]
+    then space1Len="$((space1Len - 1))"
+    fi
+    if [ "$space1Len" -gt 0 ] && [ "$space2Len" -gt 0 ]
+    then printf "%*s%s%*s" "$space1Len" '' "$1" "$space2Len" ''
+    else printf "%s" "$1"
+    fi
+}
+
+##----------------------------------------##
+## Modified by Martinski W. [2025-Aug-23] ##
+##----------------------------------------##
 ScriptHeader()
 {
 	clear
+	local spaceLen=50
 	printf "\n"
-	printf "${BOLD}########################################################${CLEARFORMAT}\\n"
-	printf "${BOLD}##                                                    ##${CLEARFORMAT}\\n"
-	printf "${BOLD}##           _   _____              _  _              ##${CLEARFORMAT}\\n"
-	printf "${BOLD}##          (_) / ____|            (_)| |             ##${CLEARFORMAT}\\n"
-	printf "${BOLD}##    _   _  _ | (___    ___  _ __  _ | |__    ___    ##${CLEARFORMAT}\\n"
-	printf "${BOLD}##   | | | || | \___ \  / __|| '__|| || '_ \  / _ \   ##${CLEARFORMAT}\\n"
-	printf "${BOLD}##   | |_| || | ____) || (__ | |   | || |_) ||  __/   ##${CLEARFORMAT}\\n"
-	printf "${BOLD}##    \__,_||_||_____/  \___||_|   |_||_.__/  \___|   ##${CLEARFORMAT}\\n"
-	printf "${BOLD}##                                                    ##${CLEARFORMAT}\\n"
-	printf "${BOLD}##             %9s on %-18s        ##${CLEARFORMAT}\n" "$SCRIPT_VERSION" "$ROUTER_MODEL"
-	printf "${BOLD}##                                                    ##${CLEARFORMAT}\\n"
-	printf "${BOLD}##        https://github.com/AMTM-OSR/uiScribe        ##${CLEARFORMAT}\\n"
-	printf "${BOLD}##  Forked from https://github.com/jackyaz/uiScribe   ##${CLEARFORMAT}\\n"
-	printf "${BOLD}##                                                    ##${CLEARFORMAT}\\n"
-	printf "${BOLD}########################################################${CLEARFORMAT}\\n"
-	printf "\n"
+	printf "${BOLD}########################################################${CLRct}\n"
+	printf "${BOLD}##                                                    ##${CLRct}\n"
+	printf "${BOLD}##           _   _____              _  _              ##${CLRct}\n"
+	printf "${BOLD}##          (_) / ____|            (_)| |             ##${CLRct}\n"
+	printf "${BOLD}##    _   _  _ | (___    ___  _ __  _ | |__    ___    ##${CLRct}\n"
+	printf "${BOLD}##   | | | || | \___ \  / __|| '__|| || '_ \  / _ \   ##${CLRct}\n"
+	printf "${BOLD}##   | |_| || | ____) || (__ | |   | || |_) ||  __/   ##${CLRct}\n"
+	printf "${BOLD}##    \__,_||_||_____/  \___||_|   |_||_.__/  \___|   ##${CLRct}\n"
+	printf "${BOLD}##                                                    ##${CLRct}\n"
+	printf "${BOLD}## ${GRNct}%s${CLRct}${BOLD} ##${CLRct}\n" "$(_CenterTextStr_ "$versionMod_TAG" "$spaceLen")"
+	printf "${BOLD}## ${GRNct}%s${CLRct}${BOLD} ##${CLRct}\n" "$(_CenterTextStr_ "$branchxStr_TAG" "$spaceLen")"
+	printf "${BOLD}##        https://github.com/AMTM-OSR/uiScribe        ##${CLRct}\n"
+	printf "${BOLD}##  Forked from https://github.com/jackyaz/uiScribe   ##${CLRct}\n"
+	printf "${BOLD}##                                                    ##${CLRct}\n"
+	printf "${BOLD}########################################################${CLRct}\n\n"
 }
 
 ##----------------------------------------##
@@ -918,10 +953,10 @@ Check_Requirements()
 Menu_Install()
 {
 	ScriptHeader
-	Print_Output true "Welcome to $SCRIPT_NAME $SCRIPT_VERSION, a script by JackYaz"
+	Print_Output true "Welcome to $SCRIPT_NAME $SCRIPT_VERSION, a script by JackYaz" "$PASS"
 	sleep 1
 
-	Print_Output false "Checking your router meets the requirements for $SCRIPT_NAME"
+	Print_Output false "Checking your router meets the requirements for $SCRIPT_NAME" "$PASS"
 
 	if ! Check_Requirements
 	then
@@ -998,50 +1033,71 @@ Menu_Uninstall()
 	Print_Output true "Uninstall completed" "$PASS"
 }
 
+##----------------------------------------##
+## Modified by Martinski W. [2025-Jul-27] ##
+##----------------------------------------##
 NTP_Ready()
 {
+	local theSleepDelay=15  ntpMaxWaitSecs=600  ntpWaitSecs
+
 	if [ "$(nvram get ntp_ready)" -eq 0 ]
 	then
-		ntpwaitcount=0
 		Check_Lock
-		while [ "$(nvram get ntp_ready)" -eq 0 ] && [ "$ntpwaitcount" -lt 600 ]
+		ntpWaitSecs=0
+		Print_Output true "Waiting for NTP to sync..." "$WARN"
+
+		while [ "$(nvram get ntp_ready)" -eq 0 ] && [ "$ntpWaitSecs" -lt "$ntpMaxWaitSecs" ]
 		do
-			ntpwaitcount="$((ntpwaitcount + 30))"
-			Print_Output true "Waiting for NTP to sync..." "$WARN"
-			sleep 30
+			if [ "$ntpWaitSecs" -gt 0 ] && [ "$((ntpWaitSecs % 30))" -eq 0 ]
+			then
+			    Print_Output true "Waiting for NTP to sync [$ntpWaitSecs secs]..." "$WARN"
+			fi
+			sleep "$theSleepDelay"
+			ntpWaitSecs="$((ntpWaitSecs + theSleepDelay))"
 		done
-		if [ "$ntpwaitcount" -ge 600 ]
+
+		if [ "$ntpWaitSecs" -ge "$ntpMaxWaitSecs" ]
 		then
 			Print_Output true "NTP failed to sync after 10 minutes. Please resolve!" "$CRIT"
 			Clear_Lock
 			exit 1
 		else
-			Print_Output true "NTP synced, $SCRIPT_NAME will now continue" "$PASS"
+			Print_Output true "NTP has synced [$ntpWaitSecs secs]. $SCRIPT_NAME will now continue." "$PASS"
 			Clear_Lock
 		fi
 	fi
 }
 
 ### function based on @Adamm00's Skynet USB wait function ###
+##----------------------------------------##
+## Modified by Martinski W. [2025-Jul-27] ##
+##----------------------------------------##
 Entware_Ready()
 {
+	local theSleepDelay=5  maxSleepTimer=120  sleepTimerSecs
+
 	if [ ! -f /opt/bin/opkg ]
 	then
 		Check_Lock
-		sleepcount=1
-		while [ ! -f /opt/bin/opkg ] && [ "$sleepcount" -le 10 ]
+		sleepTimerSecs=0
+
+		while [ ! -f /opt/bin/opkg ] && [ "$sleepTimerSecs" -lt "$maxSleepTimer" ]
 		do
-			Print_Output true "Entware NOT found, sleeping for 10s (attempt $sleepcount of 10)" "$ERR"
-			sleepcount="$((sleepcount + 1))"
-			sleep 10
+			if [ "$((sleepTimerSecs % 10))" -eq 0 ]
+			then
+			    Print_Output true "Entware NOT found. Wait for Entware to be ready [$sleepTimerSecs secs]..." "$WARN"
+			fi
+			sleep "$theSleepDelay"
+			sleepTimerSecs="$((sleepTimerSecs + theSleepDelay))"
 		done
+
 		if [ ! -f /opt/bin/opkg ]
 		then
 			Print_Output true "Entware NOT found and is required for $SCRIPT_NAME to run, please resolve!" "$CRIT"
 			Clear_Lock
 			exit 1
 		else
-			Print_Output true "Entware found, $SCRIPT_NAME will now continue" "$PASS"
+			Print_Output true "Entware found [$sleepTimerSecs secs]. $SCRIPT_NAME will now continue." "$PASS"
 			Clear_Lock
 		fi
 	fi
@@ -1049,12 +1105,12 @@ Entware_Ready()
 
 ### function based on @dave14305's FlexQoS about function ###
 ##----------------------------------------##
-## Modified by Martinski W. [2025-Jun-09] ##
+## Modified by Martinski W. [2025-Jul-09] ##
 ##----------------------------------------##
 Show_About()
 {
+	printf "About ${MGNTct}${SCRIPT_VERS_INFO}${CLRct}\n"
 	cat <<EOF
-About $SCRIPT_VERS_INFO
   $SCRIPT_NAME updates the System Log page to show log files created
   by Scribe (syslog-ng). Requires Scribe https://github.com/AMTM-OSR/scribe
 
@@ -1073,21 +1129,21 @@ EOF
 
 ### function based on @dave14305's FlexQoS show_help function ###
 ##----------------------------------------##
-## Modified by Martinski W. [2025-Jun-09] ##
+## Modified by Martinski W. [2025-Jul-09] ##
 ##----------------------------------------##
 Show_Help()
 {
+	printf "HELP ${MGNTct}${SCRIPT_VERS_INFO}${CLRct}\n"
 	cat <<EOF
-HELP $SCRIPT_VERS_INFO
 Available commands:
-  $SCRIPT_NAME about              explains functionality
-  $SCRIPT_NAME update             checks for updates
-  $SCRIPT_NAME forceupdate        updates to latest version (force update)
-  $SCRIPT_NAME startup force      runs startup actions such as mount WebUI tab
-  $SCRIPT_NAME install            installs script
-  $SCRIPT_NAME uninstall          uninstalls script
-  $SCRIPT_NAME develop            switch to development branch
-  $SCRIPT_NAME stable             switch to stable branch
+  $SCRIPT_NAME about            explains functionality
+  $SCRIPT_NAME update           checks for updates
+  $SCRIPT_NAME forceupdate      updates to latest version (force update)
+  $SCRIPT_NAME startup force    runs startup actions such as mount WebUI tab
+  $SCRIPT_NAME install          installs script
+  $SCRIPT_NAME uninstall        uninstalls script
+  $SCRIPT_NAME develop          switch to development branch version
+  $SCRIPT_NAME stable           switch to stable/production branch version
 EOF
 	printf "\n"
 }
@@ -1095,9 +1151,9 @@ EOF
 ##-------------------------------------##
 ## Added by Martinski W. [2025-Jun-09] ##
 ##-------------------------------------##
-if [ "$SCRIPT_BRANCH" != "develop" ]
+if [ "$SCRIPT_BRANCH" = "master" ]
 then SCRIPT_VERS_INFO=""
-else SCRIPT_VERS_INFO="$scriptVERINFO"
+else SCRIPT_VERS_INFO="[$versionDev_TAG]"
 fi
 
 ##----------------------------------------##
@@ -1203,7 +1259,7 @@ case "$1" in
 	*)
 		ScriptHeader
 		Print_Output false "Parameter [$*] is NOT recognised." "$ERR"
-		Print_Output false "For a list of available commands run: $SCRIPT_NAME help"
+		Print_Output false "For a list of available commands run: $SCRIPT_NAME help" "$SETTING"
 		exit 1
 	;;
 esac
