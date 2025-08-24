@@ -13,7 +13,7 @@
 ##  Forked from https://github.com/jackyaz/uiScribe   ##
 ##                                                    ##
 ########################################################
-# Last Modified: 2025-Jul-27
+# Last Modified: 2025-Aug-23
 #-------------------------------------------------------
 
 ###########        Shellcheck directives      ##########
@@ -30,7 +30,7 @@
 ### Start of script variables ###
 readonly SCRIPT_NAME="uiScribe"
 readonly SCRIPT_VERSION="v1.4.8"
-readonly SCRIPT_VERSTAG="25072723"
+readonly SCRIPT_VERSTAG="25082322"
 SCRIPT_BRANCH="develop"
 SCRIPT_REPO="https://raw.githubusercontent.com/AMTM-OSR/$SCRIPT_NAME/$SCRIPT_BRANCH"
 readonly SCRIPT_DIR="/jffs/addons/$SCRIPT_NAME.d"
@@ -46,8 +46,9 @@ readonly SHARED_WEB_DIR="$SCRIPT_PAGE_DIR/shared-jy"
 ##-------------------------------------##
 readonly scriptVersRegExp="v[0-9]{1,2}([.][0-9]{1,2})([.][0-9]{1,2})"
 readonly webPageLineRegExp="(Scribe|uiScribe|uiscribe_version_server)"
-readonly branchx_TAG="Branch: $SCRIPT_BRANCH"
-readonly version_TAG="${SCRIPT_VERSION}_${SCRIPT_VERSTAG}"
+readonly branchxStr_TAG="[Branch: $SCRIPT_BRANCH]"
+readonly versionDev_TAG="${SCRIPT_VERSION}_${SCRIPT_VERSTAG}"
+readonly versionMod_TAG="$SCRIPT_VERSION on $ROUTER_MODEL"
 
 ### End of script variables ###
 
@@ -59,6 +60,7 @@ readonly PASS="\\e[32m"
 readonly BOLD="\\e[1m"
 readonly SETTING="${BOLD}\\e[36m"
 readonly CLEARFORMAT="\\e[0m"
+readonly GRNct="\e[1;32m"
 readonly MGNTct="\e[1;35m"
 readonly CLRct="\e[0m"
 ### End of output format variables ###
@@ -88,7 +90,9 @@ Print_Output()
 		esac
 		logger -t "$SCRIPT_NAME" -p $prioNum "$2"
 	fi
-	printf "${BOLD}${3}%s${CLEARFORMAT}\n\n" "$2"
+	printf "${BOLD}${3}%s${CLRct}\n" "$2"
+	if [ $# -lt 4 ] || [ "$4" != "oneline" ]
+	then echo ; fi
 }
 
 Firmware_Version_Check()
@@ -699,7 +703,7 @@ Mount_WebUI()
 	wwwWebPageFilePath="/www/Main_LogStatus_Content.asp"
 	scriptPageFilePath="$SCRIPT_DIR/Main_LogStatus_Content.asp"
 
-	Print_Output true "Mounting WebUI tab for $SCRIPT_NAME" "$PASS"
+	Print_Output true "Mounting WebUI tab for $SCRIPT_NAME" "$PASS" oneline
 	if [ ! -s "$scriptPageFilePath" ]
 	then
 		Print_Output true "**ERROR1**: Unable to mount $SCRIPT_NAME WebUI page." "$CRIT"
@@ -756,26 +760,54 @@ PressEnter()
 	return 0
 }
 
+##-------------------------------------##
+## Added by Martinski W. [2025-Aug-23] ##
+##-------------------------------------##
+_CenterTextStr_()
+{
+    if [ $# -lt 2 ] || [ -z "$1" ] || [ -z "$2" ] || \
+       ! echo "$2" | grep -qE "^[1-9][0-9]+$"
+    then echo ; return 1
+    fi
+    local stringLen="${#1}"
+    local space1Len="$((($2 - stringLen)/2))"
+    local space2Len="$space1Len"
+    local totalLen="$((space1Len + stringLen + space2Len))"
+
+    if [ "$totalLen" -lt "$2" ]
+    then space2Len="$((space2Len + 1))"
+    elif [ "$totalLen" -gt "$2" ]
+    then space1Len="$((space1Len - 1))"
+    fi
+    if [ "$space1Len" -gt 0 ] && [ "$space2Len" -gt 0 ]
+    then printf "%*s%s%*s" "$space1Len" '' "$1" "$space2Len" ''
+    else printf "%s" "$1"
+    fi
+}
+
+##----------------------------------------##
+## Modified by Martinski W. [2025-Aug-23] ##
+##----------------------------------------##
 ScriptHeader()
 {
 	clear
+	local spaceLen=50
 	printf "\n"
-	printf "${BOLD}########################################################${CLEARFORMAT}\\n"
-	printf "${BOLD}##                                                    ##${CLEARFORMAT}\\n"
-	printf "${BOLD}##           _   _____              _  _              ##${CLEARFORMAT}\\n"
-	printf "${BOLD}##          (_) / ____|            (_)| |             ##${CLEARFORMAT}\\n"
-	printf "${BOLD}##    _   _  _ | (___    ___  _ __  _ | |__    ___    ##${CLEARFORMAT}\\n"
-	printf "${BOLD}##   | | | || | \___ \  / __|| '__|| || '_ \  / _ \   ##${CLEARFORMAT}\\n"
-	printf "${BOLD}##   | |_| || | ____) || (__ | |   | || |_) ||  __/   ##${CLEARFORMAT}\\n"
-	printf "${BOLD}##    \__,_||_||_____/  \___||_|   |_||_.__/  \___|   ##${CLEARFORMAT}\\n"
-	printf "${BOLD}##                                                    ##${CLEARFORMAT}\\n"
-	printf "${BOLD}##             %9s on %-18s        ##${CLEARFORMAT}\n" "$SCRIPT_VERSION" "$ROUTER_MODEL"
-	printf "${BOLD}##                                                    ##${CLEARFORMAT}\\n"
-	printf "${BOLD}##        https://github.com/AMTM-OSR/uiScribe        ##${CLEARFORMAT}\\n"
-	printf "${BOLD}##  Forked from https://github.com/jackyaz/uiScribe   ##${CLEARFORMAT}\\n"
-	printf "${BOLD}##                                                    ##${CLEARFORMAT}\\n"
-	printf "${BOLD}########################################################${CLEARFORMAT}\\n"
-	printf "\n"
+	printf "${BOLD}########################################################${CLRct}\n"
+	printf "${BOLD}##                                                    ##${CLRct}\n"
+	printf "${BOLD}##           _   _____              _  _              ##${CLRct}\n"
+	printf "${BOLD}##          (_) / ____|            (_)| |             ##${CLRct}\n"
+	printf "${BOLD}##    _   _  _ | (___    ___  _ __  _ | |__    ___    ##${CLRct}\n"
+	printf "${BOLD}##   | | | || | \___ \  / __|| '__|| || '_ \  / _ \   ##${CLRct}\n"
+	printf "${BOLD}##   | |_| || | ____) || (__ | |   | || |_) ||  __/   ##${CLRct}\n"
+	printf "${BOLD}##    \__,_||_||_____/  \___||_|   |_||_.__/  \___|   ##${CLRct}\n"
+	printf "${BOLD}##                                                    ##${CLRct}\n"
+	printf "${BOLD}## ${GRNct}%s${CLRct}${BOLD} ##${CLRct}\n" "$(_CenterTextStr_ "$versionMod_TAG" "$spaceLen")"
+	printf "${BOLD}## ${GRNct}%s${CLRct}${BOLD} ##${CLRct}\n" "$(_CenterTextStr_ "$branchxStr_TAG" "$spaceLen")"
+	printf "${BOLD}##        https://github.com/AMTM-OSR/uiScribe        ##${CLRct}\n"
+	printf "${BOLD}##  Forked from https://github.com/jackyaz/uiScribe   ##${CLRct}\n"
+	printf "${BOLD}##                                                    ##${CLRct}\n"
+	printf "${BOLD}########################################################${CLRct}\n\n"
 }
 
 ##----------------------------------------##
@@ -921,10 +953,10 @@ Check_Requirements()
 Menu_Install()
 {
 	ScriptHeader
-	Print_Output true "Welcome to $SCRIPT_NAME $SCRIPT_VERSION, a script by JackYaz"
+	Print_Output true "Welcome to $SCRIPT_NAME $SCRIPT_VERSION, a script by JackYaz" "$PASS"
 	sleep 1
 
-	Print_Output false "Checking your router meets the requirements for $SCRIPT_NAME"
+	Print_Output false "Checking your router meets the requirements for $SCRIPT_NAME" "$PASS"
 
 	if ! Check_Requirements
 	then
@@ -1120,8 +1152,8 @@ EOF
 ## Added by Martinski W. [2025-Jun-09] ##
 ##-------------------------------------##
 if [ "$SCRIPT_BRANCH" = "master" ]
-then SCRIPT_VERS_INFO="[$branchx_TAG]"
-else SCRIPT_VERS_INFO="[$version_TAG, $branchx_TAG]"
+then SCRIPT_VERS_INFO=""
+else SCRIPT_VERS_INFO="[$versionDev_TAG]"
 fi
 
 ##----------------------------------------##
