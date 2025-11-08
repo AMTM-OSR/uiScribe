@@ -13,7 +13,7 @@
 ##  Forked from https://github.com/jackyaz/uiScribe   ##
 ##                                                    ##
 ########################################################
-# Last Modified: 2025-Aug-23
+# Last Modified: 2025-Nov-04
 #-------------------------------------------------------
 
 ###########        Shellcheck directives      ##########
@@ -29,9 +29,9 @@
 
 ### Start of script variables ###
 readonly SCRIPT_NAME="uiScribe"
-readonly SCRIPT_VERSION="v1.4.8"
-readonly SCRIPT_VERSTAG="25082322"
-SCRIPT_BRANCH="master"
+readonly SCRIPT_VERSION="v1.4.9"
+readonly SCRIPT_VERSTAG="25110422"
+SCRIPT_BRANCH="develop"
 SCRIPT_REPO="https://raw.githubusercontent.com/AMTM-OSR/$SCRIPT_NAME/$SCRIPT_BRANCH"
 readonly SCRIPT_DIR="/jffs/addons/$SCRIPT_NAME.d"
 readonly SCRIPT_PAGE_DIR="$(readlink -f /www/user)"
@@ -88,7 +88,7 @@ Print_Output()
 		    "$PASS") prioNum=6 ;; #INFO#
 		          *) prioNum=5 ;; #NOTICE#
 		esac
-		logger -t "$SCRIPT_NAME" -p $prioNum "$2"
+		logger -t "${SCRIPT_NAME}_[$$]" -p $prioNum "$2"
 	fi
 	printf "${BOLD}${3}%s${CLRct}\n" "$2"
 	if [ $# -lt 4 ] || [ "$4" != "oneline" ]
@@ -791,10 +791,10 @@ _CenterTextStr_()
 ScriptHeader()
 {
 	clear
-	local spaceLen=50
-	printf "\n"
+	local spaceLen=50  colorCT
+	[ "$SCRIPT_BRANCH" = "master" ] && colorCT="$GRNct" || colorCT="$MGNTct"
+	echo
 	printf "${BOLD}########################################################${CLRct}\n"
-	printf "${BOLD}##                                                    ##${CLRct}\n"
 	printf "${BOLD}##           _   _____              _  _              ##${CLRct}\n"
 	printf "${BOLD}##          (_) / ____|            (_)| |             ##${CLRct}\n"
 	printf "${BOLD}##    _   _  _ | (___    ___  _ __  _ | |__    ___    ##${CLRct}\n"
@@ -803,7 +803,8 @@ ScriptHeader()
 	printf "${BOLD}##    \__,_||_||_____/  \___||_|   |_||_.__/  \___|   ##${CLRct}\n"
 	printf "${BOLD}##                                                    ##${CLRct}\n"
 	printf "${BOLD}## ${GRNct}%s${CLRct}${BOLD} ##${CLRct}\n" "$(_CenterTextStr_ "$versionMod_TAG" "$spaceLen")"
-	printf "${BOLD}## ${GRNct}%s${CLRct}${BOLD} ##${CLRct}\n" "$(_CenterTextStr_ "$branchxStr_TAG" "$spaceLen")"
+	printf "${BOLD}## ${colorCT}%s${CLRct}${BOLD} ##${CLRct}\n" "$(_CenterTextStr_ "$branchxStr_TAG" "$spaceLen")"
+	printf "${BOLD}##                                                    ##${CLRct}\n"
 	printf "${BOLD}##        https://github.com/AMTM-OSR/uiScribe        ##${CLRct}\n"
 	printf "${BOLD}##  Forked from https://github.com/jackyaz/uiScribe   ##${CLRct}\n"
 	printf "${BOLD}##                                                    ##${CLRct}\n"
@@ -1011,6 +1012,7 @@ Menu_Startup()
 	Create_Symlinks
 	Auto_Startup create 2>/dev/null
 	Auto_ServiceEvent create 2>/dev/null
+	Set_Version_Custom_Settings local "$SCRIPT_VERSION"
 	Shortcut_Script create
 	Mount_WebUI
 	Clear_Lock
@@ -1168,6 +1170,7 @@ then
 	Create_Symlinks
 	Auto_Startup create 2>/dev/null
 	Auto_ServiceEvent create 2>/dev/null
+	Set_Version_Custom_Settings local "$SCRIPT_VERSION"
 	Shortcut_Script create
 	_CheckFor_WebGUI_Page_
 	ScriptHeader

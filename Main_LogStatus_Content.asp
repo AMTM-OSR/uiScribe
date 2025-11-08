@@ -20,14 +20,16 @@ p{font-weight:bolder}thead.collapsible-jquery{color:#fff;padding:0;width:100%;bo
 <script language="JavaScript" type="text/javascript" src="/popup.js"></script>
 <script language="JavaScript" type="text/javascript" src="/help.js"></script>
 <script language="JavaScript" type="text/javascript" src="/ext/shared-jy/detect.js"></script>
+<script language="JavaScript" type="text/javascript" src="/client_function.js"></script>
 <script language="JavaScript" type="text/javascript" src="/validator.js"></script>
 <script>
 
 /**----------------------------------------**/
-/** Modified by Martinski W. [2024-Sep-09] **/
+/** Modified by Martinski W. [2025-Oct-27] **/
 /**----------------------------------------**/
 
-function showDST(){
+function showDST()
+{
 	var system_timezone_dut = "<% nvram_get("time_zone"); %>";
 	if(system_timezone_dut.search("DST") >= 0 && "<% nvram_get("time_zone_dst"); %>" == "1"){
 	document.getElementById('dstzone').style.display = "";
@@ -36,11 +38,15 @@ function showDST(){
 }
 
 var custom_settings;
-function LoadCustomSettings(){
+function LoadCustomSettings()
+{
 	custom_settings = <% get_custom_settings(); %>;
-	for (var prop in custom_settings){
-		if(Object.prototype.hasOwnProperty.call(custom_settings, prop)){
-			if (prop.indexOf("uiscribe") !== -1 && prop.indexOf("uiscribe_version") === -1){
+	for (var prop in custom_settings)
+	{
+		if (Object.prototype.hasOwnProperty.call(custom_settings, prop))
+		{
+			if (prop.indexOf("uiscribe") !== -1 && prop.indexOf("uiscribe_version") === -1)
+			{
 				eval("delete custom_settings."+prop)
 			}
 		}
