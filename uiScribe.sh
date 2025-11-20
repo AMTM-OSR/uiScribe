@@ -13,7 +13,7 @@
 ##  Forked from https://github.com/jackyaz/uiScribe   ##
 ##                                                    ##
 ########################################################
-# Last Modified: 2025-Nov-04
+# Last Modified: 2025-Nov-16
 #-------------------------------------------------------
 
 ###########        Shellcheck directives      ##########
@@ -29,8 +29,8 @@
 
 ### Start of script variables ###
 readonly SCRIPT_NAME="uiScribe"
-readonly SCRIPT_VERSION="v1.4.9"
-readonly SCRIPT_VERSTAG="25110422"
+readonly SCRIPT_VERSION="v1.4.10"
+readonly SCRIPT_VERSTAG="25111620"
 SCRIPT_BRANCH="develop"
 SCRIPT_REPO="https://raw.githubusercontent.com/AMTM-OSR/$SCRIPT_NAME/$SCRIPT_BRANCH"
 readonly SCRIPT_DIR="/jffs/addons/$SCRIPT_NAME.d"
@@ -645,7 +645,7 @@ _Check_WebGUI_Page_Exists_()
 
    if [ ! -s "$scriptPageFilePath" ] || \
       [ ! -s "$wwwWebPageFilePath" ] || \
-      ! diff "$scriptPageFilePath" "$wwwWebPageFilePath" >/dev/null 2>&1
+      ! diff -q "$scriptPageFilePath" "$wwwWebPageFilePath" >/dev/null 2>&1
    then return 1
    fi
 
