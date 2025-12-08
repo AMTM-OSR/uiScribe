@@ -1,5 +1,5 @@
 /**----------------------------**/
-/** Last Modified: 2025-Nov-30 **/
+/** Last Modified: 2025-Dec-07 **/
 /**----------------------------**/
 
 var timeoutsenabled = true;
@@ -561,8 +561,8 @@ function GetLogFileSizeInfo(theFileName)
 
 	for (var indx = 0; indx < logRotate_InfoListArray.length; indx++)
 	{
-		logFilePath = logRotate_InfoListArray[indx].LOG_PATH0;
-		logFileSize = logRotate_InfoListArray[indx].LOG_SIZE0;
+		logFilePath = logRotate_InfoListArray[indx].LOG_PATH;
+		logFileSize = logRotate_InfoListArray[indx].LOG_SIZE;
 		logFileName = logFilePath.replace('/opt/var/log/','');
 		if (logFileName === theFileName)
 		{ fileSizeOK = true; break; }
