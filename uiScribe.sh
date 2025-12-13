@@ -13,7 +13,7 @@
 ##  Forked from https://github.com/jackyaz/uiScribe   ##
 ##                                                    ##
 ########################################################
-# Last Modified: 2025-Dec-07
+# Last Modified: 2025-Dec-13
 #-------------------------------------------------------
 
 ###########        Shellcheck directives      ##########
@@ -30,7 +30,7 @@
 ### Start of script variables ###
 readonly SCRIPT_NAME="uiScribe"
 readonly SCRIPT_VERSION="v1.4.10"
-readonly SCRIPT_VERSTAG="25120720"
+readonly SCRIPT_VERSTAG="25121300"
 SCRIPT_BRANCH="develop"
 SCRIPT_REPO="https://raw.githubusercontent.com/AMTM-OSR/$SCRIPT_NAME/$SCRIPT_BRANCH"
 readonly SCRIPT_DIR="/jffs/addons/${SCRIPT_NAME}.d"
@@ -1760,7 +1760,7 @@ then
 fi
 
 ##----------------------------------------##
-## Modified by Martinski W. [2025-Dec-05] ##
+## Modified by Martinski W. [2025-Dec-13] ##
 ##----------------------------------------##
 case "$1" in
 	install)
@@ -1802,7 +1802,9 @@ case "$1" in
 			fi
 		elif echo "$3" | grep -qE "^${SCRIPT_NAME}LogFileInfoList"
 		then
+			_Generate_ListOf_Filtered_LogFiles_
 			_Get_LogRotate_FileInfoList_
+			_Update_ListOf_UserCheck_LogFiles_
 		fi
 		exit 0
 	;;
