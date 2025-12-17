@@ -30,7 +30,7 @@
 ### Start of script variables ###
 readonly SCRIPT_NAME="uiScribe"
 readonly SCRIPT_VERSION="v1.4.10"
-readonly SCRIPT_VERSTAG="25121622"
+readonly SCRIPT_VERSTAG="25121623"
 SCRIPT_BRANCH="develop"
 SCRIPT_REPO="https://raw.githubusercontent.com/AMTM-OSR/$SCRIPT_NAME/$SCRIPT_BRANCH"
 readonly SCRIPT_DIR="/jffs/addons/${SCRIPT_NAME}.d"
@@ -428,8 +428,8 @@ Create_Dirs()
 ##----------------------------------------##
 _Generate_ListOf_Filtered_LogFiles_()
 {
-    local tmpSysLogList="${HOMEdir}/tempSysLogList_$$.txt"
-    local tmpFilterList="${HOMEdir}/tempFltLogList_$$.txt"
+    local tmpSysLogList="${HOMEdir}/${SCRIPT_NAME}_tempSysLogList_$$.txt"
+    local tmpFilterList="${HOMEdir}/${SCRIPT_NAME}_tempFltLogList_$$.txt"
 
     printf '' > "$tmpFilterList"
     [ ! -f "$filteredLogList" ] && printf '' > "$filteredLogList"
