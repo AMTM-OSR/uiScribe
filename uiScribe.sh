@@ -13,7 +13,7 @@
 ##  Forked from https://github.com/jackyaz/uiScribe   ##
 ##                                                    ##
 ########################################################
-# Last Modified: 2025-Dec-13
+# Last Modified: 2025-Dec-16
 #-------------------------------------------------------
 
 ###########        Shellcheck directives      ##########
@@ -30,7 +30,7 @@
 ### Start of script variables ###
 readonly SCRIPT_NAME="uiScribe"
 readonly SCRIPT_VERSION="v1.4.10"
-readonly SCRIPT_VERSTAG="25121300"
+readonly SCRIPT_VERSTAG="25121622"
 SCRIPT_BRANCH="develop"
 SCRIPT_REPO="https://raw.githubusercontent.com/AMTM-OSR/$SCRIPT_NAME/$SCRIPT_BRANCH"
 readonly SCRIPT_DIR="/jffs/addons/${SCRIPT_NAME}.d"
@@ -424,27 +424,35 @@ Create_Dirs()
 }
 
 ##----------------------------------------##
-## Modified by Martinski W. [2025-Dec-05] ##
+## Modified by Martinski W. [2025-Dec-13] ##
 ##----------------------------------------##
 _Generate_ListOf_Filtered_LogFiles_()
 {
-    local tmpLogList="${HOMEdir}/tempLogs_$$.txt"
+    local tmpSysLogList="${HOMEdir}/tempSysLogList_$$.txt"
+    local tmpFilterList="${HOMEdir}/tempFltLogList_$$.txt"
 
-    printf '' > "$filteredLogList"
-    if "$syslogNgCmd" --preprocess-into="$tmpLogList"
+    printf '' > "$tmpFilterList"
+    [ ! -f "$filteredLogList" ] && printf '' > "$filteredLogList"
+
+    if "$syslogNgCmd" --preprocess-into="$tmpSysLogList"
     then
         while read -r theLINE && [ -n "$theLINE" ]
         do
             logFilePath="$(echo "$theLINE" | sed -e 's/^[ ]*file("//;s/".*$//')"
-            if grep -qE "^${logFilePath}$" "$filteredLogList"
+            if grep -qE "^${logFilePath}$" "$tmpFilterList"
             then continue  #Avoid duplicates#
             fi
-            echo "$logFilePath" >> "$filteredLogList"
+            echo "$logFilePath" >> "$tmpFilterList"
         done <<EOT
-$(grep -A 1 "^destination" "$tmpLogList" | grep -E '[[:blank:]]*file\("/' | grep -v '.*/log/messages')
+$(grep -A 1 "^destination" "$tmpSysLogList" | grep -E '[[:blank:]]*file\("/' | grep -v '.*/log/messages')
 EOT
     fi
-    rm -f "$tmpLogList"
+
+    if ! diff -q "$tmpFilterList" "$filteredLogList" >/dev/null 2>&1
+    then
+        mv -f "$tmpFilterList" "$filteredLogList"
+    fi
+    rm -f "$tmpSysLogList" "$tmpFilterList"
 }
 
 ##-------------------------------------##
@@ -955,9 +963,9 @@ _RotateAllLogFiles_Preamble_()
     fi
     cp -fp "$logRotateGlobalConf" "${SCRIPT_DIR}/${logRotateGlobalName}.SAVED"
 
-    lineNumEndin="$(grep -wn "endscript" "$logRotateGlobalConf" | cut -d':' -f1)"
-    lineNumBegin="$(grep -wn "postrotate" "$logRotateGlobalConf" | cut -d':' -f1)"
-    if [ -z "$lineNumEndin" ] || [ -z "$lineNumEndin" ]
+    lineNumEndin="$(grep -wn -m1 "^endscript" "$logRotateGlobalConf" | cut -d':' -f1)"
+    lineNumBegin="$(grep -wn -m1 "^postrotate" "$logRotateGlobalConf" | cut -d':' -f1)"
+    if [ -z "$lineNumBegin" ] || [ -z "$lineNumEndin" ]
     then return 1
     fi
     lineNumEndin="$((lineNumEndin + 1))"
@@ -1026,9 +1034,10 @@ _Set_LogRotateClear_ConfigOptions_()
 {
     cat << 'EOF'
 {
-    hourly
+    daily
     size 0k
-    rotate 9
+    rotate 25
+    maxage 25
     compress
     create
     dateext
@@ -1054,6 +1063,7 @@ _Set_LogRotate_ConfigOptions_()
     minsize 512k
     maxsize 4096k
     rotate 4
+    maxage 30
     compress
     delaycompress
     create
@@ -1740,13 +1750,16 @@ else SCRIPT_VERS_INFO="[$versionDev_TAG]"
 fi
 
 ##----------------------------------------##
-## Modified by Martinski W. [2025-Jun-15] ##
+## Modified by Martinski W. [2025-Dec-13] ##
 ##----------------------------------------##
 if [ $# -eq 0 ] || [ -z "$1" ]
 then
 	NTP_Ready
 	Entware_Ready
-	sed -i '/\/dev\/null/d' "$userCheckLogList"
+	if grep -qF '/dev/null' "$userCheckLogList"
+	then
+		sed -i '/\/dev\/null/d' "$userCheckLogList"
+	fi
 	Create_Dirs
 	Create_Symlinks
 	Auto_Startup create 2>/dev/null
@@ -1786,7 +1799,7 @@ case "$1" in
 			Update_Version force unattended
 		elif echo "$3" | grep -qE "^${SCRIPT_NAME}RotateLog_.*"
 		then
-			logFileName="$(echo "$3" | cut -d'_' -f2)"
+			logFileName="$(echo "$3" | cut -d'_' -f2-)"
 			if _AcquireFLock_ nonblock
 			then
 				_Run_RotateLogFile_ "$logFileName"
@@ -1794,7 +1807,7 @@ case "$1" in
 			fi
 		elif echo "$3" | grep -qE "^${SCRIPT_NAME}ClearLog_.*"
 		then
-			logFileName="$(echo "$3" | cut -d'_' -f2)"
+			logFileName="$(echo "$3" | cut -d'_' -f2-)"
 			if _AcquireFLock_ nonblock
 			then
 				_Run_ClearLogFile_ "$logFileName"
