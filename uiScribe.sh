@@ -13,7 +13,7 @@
 ##  Forked from https://github.com/jackyaz/uiScribe   ##
 ##                                                    ##
 ########################################################
-# Last Modified: 2025-Dec-16
+# Last Modified: 2025-Dec-19
 #-------------------------------------------------------
 
 ###########        Shellcheck directives      ##########
@@ -30,7 +30,7 @@
 ### Start of script variables ###
 readonly SCRIPT_NAME="uiScribe"
 readonly SCRIPT_VERSION="v1.4.10"
-readonly SCRIPT_VERSTAG="25121623"
+readonly SCRIPT_VERSTAG="25121920"
 SCRIPT_BRANCH="develop"
 SCRIPT_REPO="https://raw.githubusercontent.com/AMTM-OSR/$SCRIPT_NAME/$SCRIPT_BRANCH"
 readonly SCRIPT_DIR="/jffs/addons/${SCRIPT_NAME}.d"
@@ -543,17 +543,18 @@ Create_Symlinks()
 	fi
 	_Update_ListOf_UserCheck_LogFiles_
 
-	rm -f "$SCRIPT_WEB_DIR/"*.htm 2>/dev/null
-	ln -s "${optVarLogDir}/messages" "$SCRIPT_WEB_DIR/messages.htm" 2>/dev/null
 	ln -s "$userCheckLogList" "$SCRIPT_WEB_DIR/logs_user.htm" 2>/dev/null
+	ln -s "${optVarLogDir}/messages" "$SCRIPT_WEB_DIR/messages.htm" 2>/dev/null
+
+	_Get_LogRotate_FileInfoList_
+	ln -s "$logRotateInfoListJS" "${SCRIPT_WEB_DIR}/logRotateInfoList.js" 2>/dev/null
+
+	rm -f "$SCRIPT_WEB_DIR/"*.log.htm 2>/dev/null
 
 	while IFS='' read -r theLogFile || [ -n "$theLogFile" ]
 	do
 		ln -s "$theLogFile" "$SCRIPT_WEB_DIR/$(basename "$theLogFile").htm" 2>/dev/null
 	done < "$filteredLogList"
-
-	_Get_LogRotate_FileInfoList_
-	ln -s "$logRotateInfoListJS" "${SCRIPT_WEB_DIR}/logRotateInfoList.js" 2>/dev/null
 
 	if [ ! -d "$SHARED_WEB_DIR" ]; then
 		ln -s "$SHARED_DIR" "$SHARED_WEB_DIR" 2>/dev/null
@@ -869,9 +870,9 @@ _Get_LogRotate_ConfigFile_()
         fi
     done
 
-    if "$configFileOK"
-    then echo "$theConfigFile"
-    else _Get_LogRotate_TempConfig_ "$1"
+    if ! "$configFileOK"
+    then _Get_LogRotate_TempConfig_ "$1"
+    else _PrependGlobalDirectives_ "$theConfigFile"
     fi
 }
 
@@ -939,7 +940,8 @@ _DoPostRotateCleanup_()
 ##-------------------------------------##
 _RotateAllLogFiles_Preamble_()
 {
-    local lineNumBegin  lineNumEndin
+    local lineNumInsert
+    local tmpLogRotateAction="${HOMEdir}/${SCRIPT_NAME}_tempLogRotateAction_$$.txt"
 
     doPostRotateCleanup=false
     _Generate_ListOf_Filtered_LogFiles_
@@ -963,16 +965,22 @@ _RotateAllLogFiles_Preamble_()
     fi
     cp -fp "$logRotateGlobalConf" "${SCRIPT_DIR}/${logRotateGlobalName}.SAVED"
 
-    lineNumEndin="$(grep -wn -m1 "^endscript" "$logRotateGlobalConf" | cut -d':' -f1)"
-    lineNumBegin="$(grep -wn -m1 "^postrotate" "$logRotateGlobalConf" | cut -d':' -f1)"
-    if [ -z "$lineNumBegin" ] || [ -z "$lineNumEndin" ]
-    then return 1
-    fi
-    lineNumEndin="$((lineNumEndin + 1))"
-    sed -i "${lineNumEndin}i }" "$logRotateGlobalConf"
-    sed -i "${lineNumBegin}i {" "$logRotateGlobalConf"
-    lineNumBegin="$((lineNumBegin - 1))"
-    sed -i "${lineNumBegin}r $noConfigLogList" "$logRotateGlobalConf"
+    lineNumInsert="$(grep -wn -m1 "^endscript" "$logRotateGlobalConf" | cut -d':' -f1)"
+    [ -z "$lineNumInsert" ] && return 1
+    lineNumInsert="$((lineNumInsert + 1))"
+
+    cat "$noConfigLogList" > "$tmpLogRotateAction"
+    cat <<EOF >> "$tmpLogRotateAction"
+{
+   lastaction
+      /usr/bin/killall -HUP syslog-ng
+   endscript
+}
+
+EOF
+
+    sed -i "${lineNumInsert}r $tmpLogRotateAction" "$logRotateGlobalConf"
+    rm -f "$tmpLogRotateAction"
     doPostRotateCleanup=true
 }
 
@@ -1024,6 +1032,10 @@ _Run_RotateLogFile_()
 
     sleep 1
     "$doPostRotateCleanup" && _DoPostRotateCleanup_
+    if echo "$logRotateConf" | grep -qE "^${optTempDir}/RotateLog_.*"
+    then
+        rm -f "$logRotateConf"
+    fi
     _Get_LogRotate_FileInfoList_
 }
 
@@ -1089,14 +1101,44 @@ _Get_LogRotate_TempConfig_()
     then
         echo ; return 1
     fi
-    local logFileName="$1"  theConfigFile
-    theConfigFile="${optTempDir}/RotateLog_${logFileName%.*}.conf"
-    rm -f "$theConfigFile"
+    local logFileName="$1"  configFPath
+    configFPath="${optTempDir}/RotateLog_${logFileName%.*}.conf"
+    rm -f "$configFPath"
 
-    echo "${optVarLogDir}/$logFileName" > "$theConfigFile"
-    _Set_LogRotate_ConfigOptions_ >> "$theConfigFile"
-    chmod 644 "$theConfigFile"
-    echo "$theConfigFile"
+    echo "${optVarLogDir}/$logFileName" > "$configFPath"
+    _Set_LogRotate_ConfigOptions_ >> "$configFPath"
+    chmod 644 "$configFPath"
+    echo "$configFPath"
+}
+
+##-------------------------------------##
+## Added by Martinski W. [2025-Dec-18] ##
+##-------------------------------------##
+_PrependGlobalDirectives_()
+{
+    if [ $# -eq 0 ] || [ -z "$1" ] || [ ! -s "$1" ]
+    then echo ; return 1
+    fi
+    local configFPath
+
+    if [ ! -s "$logRotateGlobalConf" ] || \
+       grep -qE "$logFilesRegExp" "$logRotateGlobalConf"
+    then
+        if [ ! -s "${logRotateExamplesDir}/$logRotateGlobalName" ]
+        then echo "$1" ; return 1
+        fi
+        cp -fp "${logRotateExamplesDir}/$logRotateGlobalName" "$logRotateGlobalConf"
+        chmod 644 "$logRotateGlobalConf"
+    fi
+
+    configFPath="${optTempDir}/RotateLog_${1##*/}.conf"
+    rm -f "$configFPath"
+
+    cat "$logRotateGlobalConf" > "$configFPath"
+    sed -i '/^#EOF#/d' "$configFPath"
+    cat "$1" >> "$configFPath"
+    chmod 644 "$configFPath"
+    echo "$configFPath"
 }
 
 ##-------------------------------------##
@@ -1773,7 +1815,7 @@ then
 fi
 
 ##----------------------------------------##
-## Modified by Martinski W. [2025-Dec-13] ##
+## Modified by Martinski W. [2025-Dec-19] ##
 ##----------------------------------------##
 case "$1" in
 	install)
@@ -1804,6 +1846,9 @@ case "$1" in
 			then
 				_Run_RotateLogFile_ "$logFileName"
 				_ReleaseFLock_
+			else
+				echo "var logRotateStatus = 'ERROR';" > "$logRotateStatusJS"
+				echo "ERROR: Unable to acquire lock to run logrotate." > "$logRotateStatusT"
 			fi
 		elif echo "$3" | grep -qE "^${SCRIPT_NAME}ClearLog_.*"
 		then
@@ -1812,12 +1857,13 @@ case "$1" in
 			then
 				_Run_ClearLogFile_ "$logFileName"
 				_ReleaseFLock_
+			else
+				echo "var logRotateStatus = 'ERROR';" > "$logRotateStatusJS"
+				echo "ERROR: Unable to acquire lock to run logrotate." > "$logRotateStatusT"
 			fi
 		elif echo "$3" | grep -qE "^${SCRIPT_NAME}LogFileInfoList"
 		then
-			_Generate_ListOf_Filtered_LogFiles_
-			_Get_LogRotate_FileInfoList_
-			_Update_ListOf_UserCheck_LogFiles_
+			Create_Symlinks
 		fi
 		exit 0
 	;;
