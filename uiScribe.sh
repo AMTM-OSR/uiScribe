@@ -13,7 +13,7 @@
 ##  Forked from https://github.com/jackyaz/uiScribe   ##
 ##                                                    ##
 ########################################################
-# Last Modified: 2025-Dec-19
+# Last Modified: 2025-Dec-20
 #-------------------------------------------------------
 
 ###########        Shellcheck directives      ##########
@@ -30,7 +30,7 @@
 ### Start of script variables ###
 readonly SCRIPT_NAME="uiScribe"
 readonly SCRIPT_VERSION="v1.4.10"
-readonly SCRIPT_VERSTAG="25121920"
+readonly SCRIPT_VERSTAG="25122023"
 SCRIPT_BRANCH="develop"
 SCRIPT_REPO="https://raw.githubusercontent.com/AMTM-OSR/$SCRIPT_NAME/$SCRIPT_BRANCH"
 readonly SCRIPT_DIR="/jffs/addons/${SCRIPT_NAME}.d"
@@ -1050,7 +1050,7 @@ _Set_LogRotateClear_ConfigOptions_()
     size 0k
     rotate 25
     maxage 25
-    compress
+    delaycompress
     create
     dateext
     dateformat -%Y%m%d%H%M%S
@@ -1076,7 +1076,6 @@ _Set_LogRotate_ConfigOptions_()
     maxsize 4096k
     rotate 4
     maxage 30
-    compress
     delaycompress
     create
     dateext
