@@ -13,7 +13,7 @@
 ##  Forked from https://github.com/jackyaz/uiScribe   ##
 ##                                                    ##
 ########################################################
-# Last Modified: 2025-Nov-04
+# Last Modified: 2025-Dec-21
 #-------------------------------------------------------
 
 ###########        Shellcheck directives      ##########
@@ -29,16 +29,16 @@
 
 ### Start of script variables ###
 readonly SCRIPT_NAME="uiScribe"
-readonly SCRIPT_VERSION="v1.4.9"
-readonly SCRIPT_VERSTAG="25110422"
-SCRIPT_BRANCH="master"
+readonly SCRIPT_VERSION="v1.4.10"
+readonly SCRIPT_VERSTAG="25122122"
+SCRIPT_BRANCH="develop"
 SCRIPT_REPO="https://raw.githubusercontent.com/AMTM-OSR/$SCRIPT_NAME/$SCRIPT_BRANCH"
-readonly SCRIPT_DIR="/jffs/addons/$SCRIPT_NAME.d"
+readonly SCRIPT_DIR="/jffs/addons/${SCRIPT_NAME}.d"
 readonly SCRIPT_PAGE_DIR="$(readlink -f /www/user)"
-readonly SCRIPT_WEB_DIR="$SCRIPT_PAGE_DIR/$SCRIPT_NAME"
+readonly SCRIPT_WEB_DIR="${SCRIPT_PAGE_DIR}/$SCRIPT_NAME"
 readonly SHARED_DIR="/jffs/addons/shared-jy"
 readonly SHARED_REPO="https://raw.githubusercontent.com/AMTM-OSR/shared-jy/master"
-readonly SHARED_WEB_DIR="$SCRIPT_PAGE_DIR/shared-jy"
+readonly SHARED_WEB_DIR="${SCRIPT_PAGE_DIR}/shared-jy"
 [ -z "$(nvram get odmpid)" ] && ROUTER_MODEL="$(nvram get productid)" || ROUTER_MODEL="$(nvram get odmpid)"
 
 ##-------------------------------------##
@@ -49,6 +49,41 @@ readonly webPageLineRegExp="(Scribe|uiScribe|uiscribe_version_server)"
 readonly branchxStr_TAG="[Branch: $SCRIPT_BRANCH]"
 readonly versionDev_TAG="${SCRIPT_VERSION}_${SCRIPT_VERSTAG}"
 readonly versionMod_TAG="$SCRIPT_VERSION on $ROUTER_MODEL"
+
+##-------------------------------------##
+## Added by Martinski W. [2025-Nov-28] ##
+##-------------------------------------##
+readonly oneKByte=1024
+readonly oneMByte=1048576
+readonly oneGByte=1073741824
+readonly HOMEdir="/home/root"
+readonly optTempDir="/opt/tmp"
+readonly optVarLogDir="/opt/var/log"
+readonly syslogNgStr="syslog-ng"
+readonly logRotateStr="logrotate"
+readonly syslogNgCmd="/opt/sbin/$syslogNgStr"
+readonly logRotateCmd="/opt/sbin/$logRotateStr"
+readonly logRotateDir="/opt/etc/${logRotateStr}.d"
+readonly logRotateShareDir="/opt/share/$logRotateStr"
+readonly logRotateExamplesDir="${logRotateShareDir}/examples"
+readonly logRotateTemp="${optTempDir}/${logRotateStr}.temp"
+readonly logRotateDaily="${optTempDir}/${logRotateStr}.daily"
+readonly logRotateOutput="${optTempDir}/${logRotateStr}.out"
+readonly logRotateTopConf="/opt/etc/${logRotateStr}.conf"
+readonly logRotateGlobalName="A01global"
+readonly logRotateGlobalConf="${logRotateDir}/$logRotateGlobalName"
+readonly logRotateStatusT="${optTempDir}/${logRotateStr}.status"
+readonly logRotateStatusJS="${SCRIPT_WEB_DIR}/logRotateStatus.js"
+readonly logRotateInfoListJS="${SCRIPT_DIR}/logRotateInfoList.js"
+readonly logClearStatusT="${optTempDir}/${logRotateStr}Clear.status"
+readonly logClearStatusJS="${SCRIPT_WEB_DIR}/logClearStatus.js"
+readonly LR_FLock_FD=513
+readonly LR_FLock_FName="/tmp/scribeLogRotate.flock"
+
+readonly logFilesRegExp="${optVarLogDir}/.*([.]log)?"
+readonly filteredLogList="${SCRIPT_DIR}/.logs"
+readonly noConfigLogList="${SCRIPT_DIR}/.noconfiglogs"
+readonly userCheckLogList="${SCRIPT_DIR}/.logs_user"
 
 ### End of script variables ###
 
@@ -137,6 +172,24 @@ Clear_Lock()
 	rm -f "/tmp/$SCRIPT_NAME.lock" 2>/dev/null
 	return 0
 }
+
+##-------------------------------------##
+## Added by Martinski W. [2025-Dec-05] ##
+##-------------------------------------##
+_AcquireFLock_()
+{
+   local opts=""
+   eval exec "$LR_FLock_FD>$LR_FLock_FName"
+   
+   if [ $# -eq 1 ] && [ "$1" = "nonblock" ]
+   then opts="-n"
+   fi
+   flock -x $opts "$LR_FLock_FD"
+   return "$?"
+}
+
+_ReleaseFLock_()
+{ flock -u "$LR_FLock_FD" ; }
 
 ##----------------------------------------##
 ## Modified by Martinski W. [2025-Jun-09] ##
@@ -344,6 +397,9 @@ Validate_Number()
 	fi
 }
 
+##----------------------------------------##
+## Modified by Martinski W. [2025-Nov-28] ##
+##----------------------------------------##
 Create_Dirs()
 {
 	if [ ! -d "$SCRIPT_DIR" ]; then
@@ -357,97 +413,207 @@ Create_Dirs()
 	if [ ! -d "$SCRIPT_WEB_DIR" ]; then
 		mkdir -p "$SCRIPT_WEB_DIR"
 	fi
+
+	if [ ! -d "$optTempDir" ]; then
+		mkdir -m 775 "$optTempDir" 2>/dev/null
+	fi
+
+	if [ ! -d "$optVarLogDir" ]; then
+		mkdir -m 755 "$optVarLogDir" 2>/dev/null
+	fi
 }
 
 ##----------------------------------------##
-## Modified by Martinski W. [2025-Jun-15] ##
+## Modified by Martinski W. [2025-Dec-13] ##
+##----------------------------------------##
+_Generate_ListOf_Filtered_LogFiles_()
+{
+    local tmpSysLogList="${HOMEdir}/${SCRIPT_NAME}_tempSysLogList_$$.txt"
+    local tmpFilterList="${HOMEdir}/${SCRIPT_NAME}_tempFltLogList_$$.txt"
+
+    printf '' > "$tmpFilterList"
+    [ ! -f "$filteredLogList" ] && printf '' > "$filteredLogList"
+
+    if "$syslogNgCmd" --preprocess-into="$tmpSysLogList"
+    then
+        while read -r theLINE && [ -n "$theLINE" ]
+        do
+            logFilePath="$(echo "$theLINE" | sed -e 's/^[ ]*file("//;s/".*$//')"
+            if grep -qE "^${logFilePath}$" "$tmpFilterList"
+            then continue  #Avoid duplicates#
+            fi
+            echo "$logFilePath" >> "$tmpFilterList"
+        done <<EOT
+$(grep -A 1 "^destination" "$tmpSysLogList" | grep -E '[[:blank:]]*file\("/' | grep -v '.*/log/messages')
+EOT
+    fi
+
+    if ! diff -q "$tmpFilterList" "$filteredLogList" >/dev/null 2>&1
+    then
+        mv -f "$tmpFilterList" "$filteredLogList"
+    fi
+    rm -f "$tmpSysLogList" "$tmpFilterList"
+}
+
+##-------------------------------------##
+## Added by Martinski W. [2025-Dec-05] ##
+##-------------------------------------##
+_Update_ListOf_UserCheck_LogFiles_()
+{
+	local theLogFile  theLINE
+
+	while IFS='' read -r theLogFile || [ -n "$theLogFile" ]
+	do
+		if [ "$(grep -c "^$theLogFile" "$userCheckLogList")" -eq 0 ]
+		then
+			printf "%s\n" "$theLogFile" >> "$userCheckLogList"
+		fi
+	done < "$filteredLogList"
+
+	while IFS='' read -r theLINE || [ -n "$theLINE" ]
+	do
+		theLogFile="$(echo "$theLINE" | cut -d' ' -f1)"
+		if [ "$(grep -c "^$theLogFile" "$filteredLogList")" -eq 0 ]
+		then  #Remove#
+			sed -i "\\~^${theLINE}~d" "$userCheckLogList"
+		fi
+	done < "$userCheckLogList"
+}
+
+##-------------------------------------##
+## Added by Martinski W. [2025-Dec-05] ##
+##-------------------------------------##
+_Generate_ListOf_LogFiles_Without_Configs_()
+{
+    local theLogConfigExp="${logRotateDir}/*"
+    local configFilePath  configFileOK  theLogFile
+
+    printf '' > "$noConfigLogList"
+    [ ! -s "$filteredLogList" ] && return 1
+
+    while IFS='' read -r theLINE || [ -n "$theLINE" ]
+    do
+        if echo "$theLINE" | grep -qoF '#excluded#'
+        then continue
+        fi
+        theLogFile="$(echo "$theLINE" | sed 's/ *$//')"
+
+        configFileOK=false
+        for configFilePath in $(ls -1 $theLogConfigExp 2>/dev/null)
+        do
+            if [ ! -s "$configFilePath" ] || \
+               [ "${configFilePath##*/}" = "$logRotateGlobalName" ] || \
+               ! grep -qE "$logFilesRegExp" "$configFilePath"
+            then continue
+            fi
+            if grep -qE "$theLogFile" "$configFilePath"
+            then
+                configFileOK=true ; break
+            fi
+        done
+
+        if ! "$configFileOK"
+        then echo "$theLogFile" >> "$noConfigLogList"
+        fi
+    done < "$filteredLogList"
+
+    [ ! -s "$noConfigLogList" ] && rm -f "$noConfigLogList"
+}
+
+##----------------------------------------##
+## Modified by Martinski W. [2025-Dec-05] ##
 ##----------------------------------------##
 Create_Symlinks()
 {
 	if [ -z "$(which syslog-ng)" ]
 	then
-		Print_Output true "**ERROR**: syslog-ng is NOT found." "$CRIT"
-		touch "$SCRIPT_DIR/.logs"
+		Print_Output true "**ERROR**: syslog-ng is *NOT* found." "$CRIT"
+		touch "$filteredLogList"
 	else
-		syslog-ng --preprocess-into="$SCRIPT_DIR/tmplogs.txt" && grep -A 1 "destination" "$SCRIPT_DIR/tmplogs.txt" | grep "file(\"" | grep -v "#" | grep -v "messages" | sed -e 's/file("//;s/".*$//' | awk '{$1=$1;print}' > "$SCRIPT_DIR/.logs"
-		rm -f "$SCRIPT_DIR/tmplogs.txt" 2>/dev/null
+		_Generate_ListOf_Filtered_LogFiles_
 	fi
 
 	if [ $# -gt 0 ] && [ "$1" = "force" ]
 	then
-		rm -f "$SCRIPT_DIR/.logs_user"
+		rm -f "$userCheckLogList"
 	fi
-
-	if [ ! -f "$SCRIPT_DIR/.logs_user" ]; then
-		touch "$SCRIPT_DIR/.logs_user"
+	if [ ! -f "$userCheckLogList" ]
+	then
+		touch "$userCheckLogList"
 	fi
+	_Update_ListOf_UserCheck_LogFiles_
 
-	while IFS='' read -r line || [ -n "$line" ]
-	do
-		if [ "$(grep -c "$line" "$SCRIPT_DIR/.logs_user")" -eq 0 ]; then
-			printf "%s\\n" "$line" >> "$SCRIPT_DIR/.logs_user"
-		fi
-	done < "$SCRIPT_DIR/.logs"
+	ln -s "$userCheckLogList" "$SCRIPT_WEB_DIR/logs_user.htm" 2>/dev/null
+	ln -s "${optVarLogDir}/messages" "$SCRIPT_WEB_DIR/messages.htm" 2>/dev/null
 
-	rm -f "$SCRIPT_WEB_DIR/"*.htm 2>/dev/null
-	ln -s "$SCRIPT_DIR/.logs_user" "$SCRIPT_WEB_DIR/logs.htm" 2>/dev/null
-	ln -s /opt/var/log/messages "$SCRIPT_WEB_DIR/messages.htm" 2>/dev/null
-	while IFS='' read -r line || [ -n "$line" ]
+	_Get_LogRotate_FileInfoList_
+	ln -s "$logRotateInfoListJS" "${SCRIPT_WEB_DIR}/logRotateInfoList.js" 2>/dev/null
+
+	rm -f "$SCRIPT_WEB_DIR/"*.log.htm 2>/dev/null
+
+	while IFS='' read -r theLogFile || [ -n "$theLogFile" ]
 	do
-		ln -s "$line" "$SCRIPT_WEB_DIR/$(basename "$line").htm" 2>/dev/null
-	done < "$SCRIPT_DIR/.logs"
+		ln -s "$theLogFile" "$SCRIPT_WEB_DIR/$(basename "$theLogFile").htm" 2>/dev/null
+	done < "$filteredLogList"
 
 	if [ ! -d "$SHARED_WEB_DIR" ]; then
 		ln -s "$SHARED_DIR" "$SHARED_WEB_DIR" 2>/dev/null
 	fi
 }
 
+##----------------------------------------##
+## Modified by Martinski W. [2025-Dec-06] ##
+##----------------------------------------##
 Logs_FromSettings()
 {
 	SETTINGSFILE="/jffs/addons/custom_settings.txt"
-	LOGS_USER="$SCRIPT_DIR/.logs_user"
+	LOGS_USER="$userCheckLogList"
+
 	if [ -f "$SETTINGSFILE" ]
 	then
 		if grep -q "uiscribe_logs_enabled" "$SETTINGSFILE"
 		then
 			Print_Output true "Updated logs from WebUI found, merging into $LOGS_USER" "$PASS"
-			cp -a "$LOGS_USER" "$LOGS_USER.bak"
+			cp -a "$userCheckLogList" "${userCheckLogList}.bak"
 			SETTINGVALUE="$(grep "uiscribe_logs_enabled" "$SETTINGSFILE" | cut -f2 -d' ')"
 			sed -i "\\~uiscribe_logs_enabled~d" "$SETTINGSFILE"
 
-			syslog-ng --preprocess-into="$SCRIPT_DIR/tmplogs.txt" && grep -A 1 "destination" "$SCRIPT_DIR/tmplogs.txt" | grep "file(\"" | grep -v "#" | grep -v "messages" | sed -e 's/file("//;s/".*$//' | awk '{$1=$1;print}' > "$SCRIPT_DIR/.logs"
-			rm -f "$SCRIPT_DIR/tmplogs.txt" 2>/dev/null
+			_Generate_ListOf_Filtered_LogFiles_
+			printf '' > "$userCheckLogList"
 
-			echo "" > "$LOGS_USER"
-
-			comment=" #excluded#"
-			while IFS='' read -r line || [ -n "$line" ]
+			theComment=" #excluded#"
+			while IFS='' read -r logFile || [ -n "$logFile" ]
 			do
-				if [ "$(grep -c "$line" "$LOGS_USER")" -eq 0 ]; then
-						printf "%s%s\\n" "$line" "$comment" >> "$LOGS_USER"
+				if [ "$(grep -c "$logFile" "$userCheckLogList")" -eq 0 ]
+				then
+					printf "%s%s\n" "$logFile" "$theComment" >> "$userCheckLogList"
 				fi
-			done < "$SCRIPT_DIR/.logs"
+			done < "$filteredLogList"
 
-			for log in $(echo "$SETTINGVALUE" | sed "s/,/ /g")
+			for logFile in $(echo "$SETTINGVALUE" | sed "s/,/ /g")
 			do
-				loglinenumber="$(grep -n "$log" "$LOGS_USER" | cut -f1 -d':')"
-				logline="$(sed "$loglinenumber!d" "$LOGS_USER" | awk '{$1=$1};1')"
-
-				if echo "$logline" | grep -q "#excluded" ; then
-					sed -i "$loglinenumber"'s/ #excluded#//' "$LOGS_USER"
+				logLineNum="$(grep -n "$logFile" "$userCheckLogList" | cut -f1 -d':')"
+				logFileLine="$(sed "${logLineNum}!d" "$userCheckLogList" | awk '{$1=$1};1')"
+				if echo "$logFileLine" | grep -q "#excluded"
+				then
+					sed -i "$logLineNum"'s/ #excluded#//' "$userCheckLogList"
 				fi
 			done
 
-			awk 'NF' "$LOGS_USER" > /tmp/uiscribe-logs
-			mv -f /tmp/uiscribe-logs "$LOGS_USER"
+			awk 'NF' "$userCheckLogList" > /tmp/uiscribe-logs
+			mv -f /tmp/uiscribe-logs "$userCheckLogList"
 
 			rm -f "$SCRIPT_WEB_DIR/"*.htm 2>/dev/null
-			ln -s "$SCRIPT_DIR/.logs_user" "$SCRIPT_WEB_DIR/logs.htm" 2>/dev/null
-			ln -s /opt/var/log/messages "$SCRIPT_WEB_DIR/messages.htm" 2>/dev/null
-			while IFS='' read -r line || [ -n "$line" ]
+			ln -s "${optVarLogDir}/messages" "$SCRIPT_WEB_DIR/messages.htm" 2>/dev/null
+			ln -s "$userCheckLogList" "$SCRIPT_WEB_DIR/logs_user.htm" 2>/dev/null
+
+			while IFS='' read -r logFile || [ -n "$logFile" ]
 			do
-				ln -s "$line" "$SCRIPT_WEB_DIR/$(basename "$line").htm" 2>/dev/null
-			done < "$SCRIPT_DIR/.logs"
+				ln -s "$logFile" "$SCRIPT_WEB_DIR/$(basename "$logFile").htm" 2>/dev/null
+			done < "$filteredLogList"
+
+			_Get_LogRotate_FileInfoList_
+			ln -s "$logRotateInfoListJS" "${SCRIPT_WEB_DIR}/logRotateInfoList.js" 2>/dev/null
 
 			Print_Output true "Merge of updated logs from WebUI completed successfully" "$PASS"
 		else
@@ -463,24 +629,20 @@ Generate_Log_List()
 {
 	ScriptHeader
 	goback=false
-	printf "Retrieving list of log files...\n\n"
-	logCount="$(wc -l < "$SCRIPT_DIR/.logs_user")"
+	printf " Retrieving list of log files...\n\n"
+	logCount="$(wc -l < "$userCheckLogList")"
 	COUNTER=1
 	until [ "$COUNTER" -gt "$logCount" ]
 	do
-		logfile="$(sed "$COUNTER!d" "$SCRIPT_DIR/.logs_user" | awk '{$1=$1};1')"
-		if [ "$COUNTER" -lt 10 ]; then
-			printf "%s)  %s\n" "$COUNTER" "$logfile"
-		else
-			printf "%s) %s\n" "$COUNTER" "$logfile"
-		fi
+		logfile="$(sed "$COUNTER!d" "$userCheckLogList" | awk '{$1=$1};1')"
+		printf "%3d)  %s\n" "$COUNTER" "$logfile"
 		COUNTER="$((COUNTER + 1))"
 	done
-	printf "\ne)  Go back\n"
+	printf "\n  e)  Go back\n"
 
 	while true
 	do
-		printf "\n${BOLD}Please select a log to toggle inclusion in %s [1-%s]:${CLEARFORMAT}  " "$SCRIPT_NAME" "$logCount"
+		printf "\n ${BOLD}Please select a log to toggle inclusion in %s [1-%s]:${CLEARFORMAT}  " "$SCRIPT_NAME" "$logCount"
 		read -r logNum
 
 		if [ "$logNum" = "e" ]
@@ -499,14 +661,14 @@ Generate_Log_List()
 				PressEnter
 				break
 			else
-				logLine="$(sed "$logNum!d" "$SCRIPT_DIR/.logs_user" | awk '{$1=$1};1')"
+				logLine="$(sed "$logNum!d" "$userCheckLogList" | awk '{$1=$1};1')"
 				if echo "$logLine" | grep -q "#excluded#"
 				then
-					sed -i "$logNum"'s/ #excluded#//' "$SCRIPT_DIR/.logs_user"
+					sed -i "$logNum"'s/ #excluded#//' "$userCheckLogList"
 				else
-					sed -i "$logNum"'s/$/ #excluded#/' "$SCRIPT_DIR/.logs_user"
+					sed -i "$logNum"'s/$/ #excluded#/' "$userCheckLogList"
 				fi
-				sed -i 's/ *$//' "$SCRIPT_DIR/.logs_user"
+				sed -i 's/ *$//' "$userCheckLogList"
 				printf "\n"
 				break
 			fi
@@ -626,6 +788,476 @@ Auto_Startup()
 	esac
 }
 
+##-------------------------------------##
+## Added by Martinski W. [2025-Nov-28] ##
+##-------------------------------------##
+_GetFileSize_()
+{
+   local typeUnits  sizeUnits  sizeInfo  fileSize
+   if [ $# -eq 0 ] || [ -z "$1" ] || [ ! -f "$1" ]
+   then echo 0 ; return 1
+   fi
+
+   if [ $# -lt 2 ] || [ -z "$2" ] || \
+      ! echo "$2" | grep -qE "^(B|KB|MB|GB|HR|HRx)$"
+   then typeUnits="B" ; else typeUnits="$2"
+   fi
+
+   _GetNum_() { printf "%.1f" "$(echo "$1" | awk "{print $1}")" ; }
+
+   case "$typeUnits" in
+       B|KB|MB|GB)
+           fileSize="$(ls -1l "$1" | awk -F ' ' '{print $3}')"
+           case "$typeUnits" in
+               KB) fileSize="$(_GetNum_ "($fileSize / $oneKByte)")" ;;
+               MB) fileSize="$(_GetNum_ "($fileSize / $oneMByte)")" ;;
+               GB) fileSize="$(_GetNum_ "($fileSize / $oneGByte)")" ;;
+           esac
+           echo "$fileSize"
+           ;;
+       HR|HRx)
+           fileSize="$(ls -1lh "$1" | awk -F ' ' '{print $3}')"
+           sizeInfo="${fileSize}B"
+           sizeUnits="$(echo "$sizeInfo" | tr -d '.0-9')"
+           if [ "$typeUnits" = "HR" ]
+           then
+               [ "$sizeUnits" = "B" ] && \
+               sizeInfo="$(echo "$sizeInfo" | grep -oE '[0-9]+') Bytes"
+               echo "$sizeInfo"
+               return 0
+           fi
+           case "$sizeUnits" in
+               MB) fileSize="$(_GetFileSize_ "$1" KB)"
+                   sizeInfo="$sizeInfo (${fileSize}KB)"
+                   ;;
+               GB) fileSize="$(_GetFileSize_ "$1" MB)"
+                   sizeInfo="$sizeInfo (${fileSize}MB)"
+                   ;;
+                B) sizeInfo="$(echo "$sizeInfo" | grep -oE '[0-9]+') Bytes"
+                   ;;
+           esac
+           echo "$sizeInfo"
+           ;;
+       *) echo 0 ;;
+   esac
+   return 0
+}
+
+##-------------------------------------##
+## Added by Martinski W. [2025-Nov-28] ##
+##-------------------------------------##
+_Get_LogRotate_ConfigFile_()
+{
+    if [ $# -eq 0 ] || [ -z "$1" ] || \
+       [ ! -s "${optVarLogDir}/$1" ]
+    then
+        echo ; return 1
+    fi
+    local theConfigFile  theConfLogExp  configFileOK
+
+    configFileOK=false
+    theConfLogExp="${logRotateDir}/*"
+
+    for theConfigFile in $(ls -1 $theConfLogExp 2>/dev/null)
+    do
+        if [ ! -s "$theConfigFile" ] || \
+           ! grep -qE "$logFilesRegExp" "$theConfigFile"
+        then continue
+        fi
+        if grep -qE "${optVarLogDir}/$1" "$theConfigFile"
+        then
+            configFileOK=true ; break
+        fi
+    done
+
+    if ! "$configFileOK"
+    then _Get_LogRotate_TempConfig_ "$1"
+    else _PrependGlobalDirectives_ "$theConfigFile"
+    fi
+}
+
+##-------------------------------------##
+## Added by Martinski W. [2025-Nov-28] ##
+##-------------------------------------##
+_Get_LogRotate_FileInfoList_()
+{
+    local logFileCount  logFilePath  logFileSize
+    
+    _AddLogFileInfo_()
+    {
+        logFileSize="$(_GetFileSize_ "$1" HRx)"
+        [ "$logFileSize" = "0" ] && logFileSize="0 Bytes"
+        printf "   { LOG_PATH: '%s',\n" "$1"
+        printf "     LOG_SIZE: '%s'\n"  "$logFileSize"
+        printf '   }'
+    }
+
+    [ ! -f "$filteredLogList" ] && touch "$filteredLogList"
+    {
+       printf 'var logRotate_InfoListArray =\n[\n'
+       _AddLogFileInfo_ "${optVarLogDir}/messages"
+    } > "$logRotateInfoListJS"
+
+    logFileCount=1
+    while IFS='' read -r logFilePath || [ -n "$logFilePath" ]
+	do
+        if grep -qE "[']${logFilePath}[']" "$logRotateInfoListJS"
+        then continue  #Avoid duplicates#
+        fi
+        if [ "$logFileCount" -gt 0 ]
+        then printf ',\n'   >> "$logRotateInfoListJS"
+        else printf '\n[\n' >> "$logRotateInfoListJS"
+        fi
+        _AddLogFileInfo_ "$logFilePath" >> "$logRotateInfoListJS"
+        logFileCount="$((logFileCount + 1))"
+    done < "$filteredLogList"
+
+    if [ "$logFileCount" -eq 0 ]
+    then printf ' [];\n' >> "$logRotateInfoListJS"
+    else printf '\n];\n' >> "$logRotateInfoListJS"
+    fi
+}
+
+##-------------------------------------##
+## Added by Martinski W. [2025-Dec-05] ##
+##-------------------------------------##
+_DoPostRotateCleanup_()
+{
+    if [ ! -s "$logRotateGlobalConf" ] && \
+       [ ! -s "${logRotateExamplesDir}/$logRotateGlobalName" ] 
+    then return 1
+    fi
+    if [ -s "${SCRIPT_DIR}/${logRotateGlobalName}.SAVED" ]
+    then
+        mv -f "${SCRIPT_DIR}/${logRotateGlobalName}.SAVED" "$logRotateGlobalConf"
+    else
+        cp -fp "${logRotateExamplesDir}/$logRotateGlobalName" "$logRotateGlobalConf"
+    fi
+}
+
+##-------------------------------------##
+## Added by Martinski W. [2025-Dec-05] ##
+##-------------------------------------##
+_RotateAllLogFiles_Preamble_()
+{
+    local lineNumInsert
+    local tmpLogRotateAction="${HOMEdir}/${SCRIPT_NAME}_tempLogRotateAction_$$.txt"
+
+    doPostRotateCleanup=false
+    _Generate_ListOf_Filtered_LogFiles_
+    _Update_ListOf_UserCheck_LogFiles_
+    _Generate_ListOf_LogFiles_Without_Configs_
+
+    if [ ! -s "$noConfigLogList" ] || \
+       { [ ! -s "$logRotateGlobalConf" ] && \
+         [ ! -s "${logRotateExamplesDir}/$logRotateGlobalName" ] ; }
+    then return 1
+    fi
+
+    if [ ! -s "$logRotateGlobalConf" ] || \
+       grep -qE "$logFilesRegExp" "$logRotateGlobalConf"
+    then
+        if [ ! -s "${logRotateExamplesDir}/$logRotateGlobalName" ]
+        then return 1
+        fi
+        cp -fp "${logRotateExamplesDir}/$logRotateGlobalName" "$logRotateGlobalConf"
+        chmod 644 "$logRotateGlobalConf"
+    fi
+    cp -fp "$logRotateGlobalConf" "${SCRIPT_DIR}/${logRotateGlobalName}.SAVED"
+
+    lineNumInsert="$(grep -wn -m1 "^endscript" "$logRotateGlobalConf" | cut -d':' -f1)"
+    [ -z "$lineNumInsert" ] && return 1
+    lineNumInsert="$((lineNumInsert + 1))"
+
+    cat "$noConfigLogList" > "$tmpLogRotateAction"
+    cat <<EOF >> "$tmpLogRotateAction"
+{
+   postrotate
+      /usr/bin/killall -HUP syslog-ng
+   endscript
+}
+
+EOF
+
+    sed -i "${lineNumInsert}r $tmpLogRotateAction" "$logRotateGlobalConf"
+    rm -f "$tmpLogRotateAction"
+    doPostRotateCleanup=true
+}
+
+##-------------------------------------##
+## Added by Martinski W. [2025-Nov-28] ##
+##-------------------------------------##
+_Run_RotateLogFile_()
+{
+    rm -f "$logRotateStatusJS"
+
+    if [ $# -eq 0 ] || [ -z "$1" ] || [ ! -x "$logRotateCmd" ]
+    then
+        echo "var logRotateStatus = 'ERROR';" > "$logRotateStatusJS"
+        echo "ERROR: LogRotate is NOT available." > "$logRotateStatusT"
+        return 1
+    fi
+
+    local doPostRotateCleanup=false
+    local logRotateConf="$logRotateTopConf"
+
+    case "$1" in
+        ALL) _RotateAllLogFiles_Preamble_
+             ;;
+          *) logRotateConf="$(_Get_LogRotate_ConfigFile_ "$1")"
+             ;;
+    esac
+
+    if [ -z "$logRotateConf" ] || [ ! -s "$logRotateConf" ]
+    then
+        echo "var logRotateStatus = 'ERROR';" > "$logRotateStatusJS"
+        {
+            if [ "$1" != "ALL" ] && [ ! -s "${optVarLogDir}/$1" ]
+            then
+                echo "Log file [${optVarLogDir}/$1] NOT found or is EMPTY."
+            fi
+            [ -n "$logRotateConf" ] && \
+            echo "Check if LogRotate config file [$logRotateConf] exists."
+        } > "$logRotateStatusT"
+        return 1
+    fi
+    echo "var logRotateStatus = 'InProgress';" > "$logRotateStatusJS"
+
+    $logRotateCmd "$logRotateConf" > "$logRotateOutput" 2>&1
+    tail -v "$logRotateOutput" > "$logRotateStatusT"
+    [ -s "$logRotateOutput" ] && \
+    cat "$logRotateOutput" > "$logRotateDaily"
+    echo "LogRotate '$1' was completed." >> "$logRotateStatusT"
+    echo "var logRotateStatus = 'DONE';" > "$logRotateStatusJS"
+
+    sleep 1
+    "$doPostRotateCleanup" && _DoPostRotateCleanup_
+    if echo "$logRotateConf" | grep -qE "^${optTempDir}/RotateLog_.*"
+    then
+        rm -f "$logRotateConf"
+    fi
+    _Get_LogRotate_FileInfoList_
+}
+
+##-------------------------------------##
+## Added by Martinski W. [2025-Nov-28] ##
+##-------------------------------------##
+_Set_LogRotateClear_ConfigOptions_()
+{
+    cat << 'EOF'
+{
+    daily
+    size 0k
+    rotate 25
+    maxage 25
+    delaycompress
+    create
+    dateext
+    dateformat -%Y%m%d%H%M%S
+    missingok
+    notifempty
+    sharedscripts
+    postrotate
+        /usr/bin/killall -HUP syslog-ng
+    endscript
+}
+EOF
+}
+
+##-------------------------------------##
+## Added by Martinski W. [2025-Dec-05] ##
+##-------------------------------------##
+_Set_LogRotate_ConfigOptions_()
+{
+    cat << 'EOF'
+{
+    weekly
+    minsize 512k
+    maxsize 4096k
+    rotate 4
+    maxage 30
+    delaycompress
+    create
+    dateext
+    dateformat -%Y%m%d%H%M
+    missingok
+    notifempty
+    sharedscripts
+    postrotate
+        /usr/bin/killall -HUP syslog-ng
+    endscript
+}
+EOF
+}
+
+##-------------------------------------##
+## Added by Martinski W. [2025-Dec-05] ##
+##-------------------------------------##
+_Get_LogRotate_TempConfig_()
+{
+    if [ $# -eq 0 ] || [ -z "$1" ] || \
+       [ ! -s "${optVarLogDir}/$1" ]
+    then
+        echo ; return 1
+    fi
+    local logFileName="$1"  configFPath
+    configFPath="${optTempDir}/RotateLog_${logFileName%.*}.conf"
+    rm -f "$configFPath"
+
+    echo "${optVarLogDir}/$logFileName" > "$configFPath"
+    _Set_LogRotate_ConfigOptions_ >> "$configFPath"
+    chmod 644 "$configFPath"
+    echo "$configFPath"
+}
+
+##-------------------------------------##
+## Added by Martinski W. [2025-Dec-18] ##
+##-------------------------------------##
+_PrependGlobalDirectives_()
+{
+    if [ $# -eq 0 ] || [ -z "$1" ] || [ ! -s "$1" ]
+    then echo ; return 1
+    fi
+    local configFPath
+
+    if [ ! -s "$logRotateGlobalConf" ] || \
+       grep -qE "$logFilesRegExp" "$logRotateGlobalConf"
+    then
+        if [ ! -s "${logRotateExamplesDir}/$logRotateGlobalName" ]
+        then echo "$1" ; return 1
+        fi
+        cp -fp "${logRotateExamplesDir}/$logRotateGlobalName" "$logRotateGlobalConf"
+        chmod 644 "$logRotateGlobalConf"
+    fi
+
+    configFPath="${optTempDir}/RotateLog_${1##*/}.conf"
+    rm -f "$configFPath"
+
+    cat "$logRotateGlobalConf" > "$configFPath"
+    sed -i '/^#EOF#/d' "$configFPath"
+    cat "$1" >> "$configFPath"
+    chmod 644 "$configFPath"
+    echo "$configFPath"
+}
+
+##-------------------------------------##
+## Added by Martinski W. [2025-Nov-28] ##
+##-------------------------------------##
+_Get_LogRotateClear_ConfigFile_()
+{
+    if [ $# -eq 0 ] || [ -z "$1" ] || \
+       [ ! -s "${optVarLogDir}/$1" ]
+    then
+        echo ; return 1
+    fi
+    local logFileName="$1"  theConfigFile
+    theConfigFile="${optTempDir}/ClearLog_${logFileName%.*}.conf"
+    rm -f "$theConfigFile"
+
+    echo "${optVarLogDir}/$logFileName" > "$theConfigFile"
+    _Set_LogRotateClear_ConfigOptions_ >> "$theConfigFile"
+    chmod 644 "$theConfigFile"
+    echo "$theConfigFile"
+}
+
+##-------------------------------------##
+## Added by Martinski W. [2025-Nov-28] ##
+##-------------------------------------##
+_Run_ClearAllLogFiles_()
+{
+    local logFilePath="${optVarLogDir}/messages"
+    local logRotateConf="${optTempDir}/ClearLog_ALL.conf"
+
+    rm -f "$logRotateConf"
+
+    [ -s "$logFilePath" ] && \
+    echo "$logFilePath" > "$logRotateConf"
+
+    [ ! -s "$userCheckLogList" ] && touch "$userCheckLogList"
+
+    while IFS='' read -r theLINE || [ -n "$theLINE" ]
+    do
+        if echo "$theLINE" | grep -qoF '#excluded#'
+        then continue
+        fi
+        logFilePath="$(echo "$theLINE" | sed 's/ *$//')"
+        [ -s "$logFilePath" ] && \
+        echo "$logFilePath" >> "$logRotateConf"
+    done < "$userCheckLogList"
+
+    if [ -z "$logRotateConf" ] || [ ! -s "$logRotateConf" ]
+    then
+        echo "var logClearStatus = 'ERROR';" > "$logClearStatusJS"
+        {
+            echo "Log files in [$optVarLogDir] NOT found or are EMPTY."
+        } > "$logClearStatusT"
+        return 1
+    fi
+
+    _Set_LogRotateClear_ConfigOptions_ >> "$logRotateConf"
+    chmod 644 "$logRotateConf"
+    echo "var logClearStatus = 'InProgress';" > "$logClearStatusJS"
+
+    $logRotateCmd "$logRotateConf" > "$logRotateOutput" 2>&1
+    tail -v "$logRotateOutput" > "$logClearStatusT"
+    [ -s "$logRotateOutput" ] && \
+    cat "$logRotateOutput" > "$logRotateDaily"
+    echo "LogRotateClear 'ALL' was completed." >> "$logClearStatusT"
+    echo "var logClearStatus = 'DONE';" > "$logClearStatusJS"
+    rm -f "$logRotateConf"
+
+    sleep 1
+    _Get_LogRotate_FileInfoList_
+}
+
+##-------------------------------------##
+## Added by Martinski W. [2025-Nov-28] ##
+##-------------------------------------##
+_Run_ClearLogFile_()
+{
+    rm -f "$logClearStatusJS"
+
+    if [ $# -eq 0 ] || [ -z "$1" ] || [ ! -x "$logRotateCmd" ]
+    then
+        echo "var logClearStatus = 'ERROR';" > "$logClearStatusJS"
+        echo "ERROR: LogRotate is NOT available." > "$logClearStatusJS"
+        return 1
+    fi
+    local logFilePath  logRotateConf=""
+
+    case "$1" in
+        ALL) _Run_ClearAllLogFiles_ ; return "$?"
+             ;;
+          *) logRotateConf="$(_Get_LogRotateClear_ConfigFile_ "$1")"
+             ;;
+    esac
+
+    if [ -z "$logRotateConf" ] || [ ! -s "$logRotateConf" ]
+    then
+        logFilePath="${optVarLogDir}/$1"
+        echo "var logClearStatus = 'ERROR';" > "$logClearStatusJS"
+        {
+            [ ! -s "$logFilePath" ] && \
+            echo "Log file [$logFilePath] NOT found or is EMPTY."
+            [ -n "$logRotateConf" ] && \
+            echo "Check if LogRotate config file [$logRotateConf] exists."
+        } > "$logClearStatusT"
+        return 1
+    fi
+    echo "var logClearStatus = 'InProgress';" > "$logClearStatusJS"
+
+    $logRotateCmd "$logRotateConf" > "$logRotateOutput" 2>&1
+    tail -v "$logRotateOutput" > "$logClearStatusT"
+    [ -s "$logRotateOutput" ] && \
+    cat "$logRotateOutput" > "$logRotateDaily"
+    echo "LogRotateClear '$1' was completed." >> "$logClearStatusT"
+    echo "var logClearStatus = 'DONE';" > "$logClearStatusJS"
+    rm -f "$logRotateConf"
+
+    sleep 1
+    _Get_LogRotate_FileInfoList_
+}
+
 ##----------------------------------------##
 ## Modified by Martinski W. [2025-Jun-09] ##
 ##----------------------------------------##
@@ -645,7 +1277,7 @@ _Check_WebGUI_Page_Exists_()
 
    if [ ! -s "$scriptPageFilePath" ] || \
       [ ! -s "$wwwWebPageFilePath" ] || \
-      ! diff "$scriptPageFilePath" "$wwwWebPageFilePath" >/dev/null 2>&1
+      ! diff -q "$scriptPageFilePath" "$wwwWebPageFilePath" >/dev/null 2>&1
    then return 1
    fi
 
@@ -818,21 +1450,21 @@ MainMenu()
 {
 	Create_Dirs
 	Create_Symlinks
-	printf "WebUI for %s is available at:\n${SETTING}%s${CLEARFORMAT}\n\n" "$SCRIPT_NAME" "$(Get_WebUI_URL)"
+	printf " WebUI for %s is available at:\n ${SETTING}%s${CLEARFORMAT}\n\n" "$SCRIPT_NAME" "$(Get_WebUI_URL)"
 
-	printf "1.    Customise list of logs displayed by %s\n\n" "$SCRIPT_NAME"
-	printf "rf.   Clear user preferences for displayed logs\n\n"
-	printf "u.    Check for updates\n"
-	printf "uf.   Force update %s with latest version\n\n" "$SCRIPT_NAME"
-	printf "e.    Exit %s\n\n" "$SCRIPT_NAME"
-	printf "z.    Uninstall %s\n" "$SCRIPT_NAME"
+	printf "  1.   Customise list of logs displayed by %s\n\n" "$SCRIPT_NAME"
+	printf " rf.   Clear user preferences for displayed logs\n\n"
+	printf "  u.   Check for updates\n"
+	printf " uf.   Force update %s with latest version\n\n" "$SCRIPT_NAME"
+	printf "  e.   Exit %s\n\n" "$SCRIPT_NAME"
+	printf "  z.   Uninstall %s\n" "$SCRIPT_NAME"
 	printf "\n"
 	printf "${BOLD}########################################################${CLEARFORMAT}\n"
 	printf "\n"
 
 	while true
 	do
-		printf "Choose an option:  "
+		printf " Choose an option:  "
 		read -r menuOption
 		case "$menuOption" in
 			1)
@@ -928,7 +1560,7 @@ Check_Requirements()
 		CHECKSFAILED="true"
 	fi
 
-	if [ ! -f /opt/bin/scribe ]
+	if [ ! -x /opt/bin/scribe ] || [ ! -x /jffs/scripts/scribe ]
 	then
 		Print_Output false "Scribe is NOT installed!" "$ERR"
 		CHECKSFAILED="true"
@@ -1159,13 +1791,16 @@ else SCRIPT_VERS_INFO="[$versionDev_TAG]"
 fi
 
 ##----------------------------------------##
-## Modified by Martinski W. [2025-Jun-15] ##
+## Modified by Martinski W. [2025-Dec-13] ##
 ##----------------------------------------##
 if [ $# -eq 0 ] || [ -z "$1" ]
 then
 	NTP_Ready
 	Entware_Ready
-	sed -i '/\/dev\/null/d' "$SCRIPT_DIR/.logs_user"
+	if grep -qF '/dev/null' "$userCheckLogList"
+	then
+		sed -i '/\/dev\/null/d' "$userCheckLogList"
+	fi
 	Create_Dirs
 	Create_Symlinks
 	Auto_Startup create 2>/dev/null
@@ -1179,7 +1814,7 @@ then
 fi
 
 ##----------------------------------------##
-## Modified by Martinski W. [2025-Jun-27] ##
+## Modified by Martinski W. [2025-Dec-19] ##
 ##----------------------------------------##
 case "$1" in
 	install)
@@ -1193,15 +1828,41 @@ case "$1" in
 		exit 0
 	;;
 	service_event)
-		if [ "$2" = "start" ] && [ "$3" = "${SCRIPT_NAME}config" ]
+		[ "$2" != "start" ] && exit 0
+		if [ "$3" = "${SCRIPT_NAME}config" ]
 		then
 			Logs_FromSettings
-		elif [ "$2" = "start" ] && [ "$3" = "${SCRIPT_NAME}checkupdate" ]
+		elif [ "$3" = "${SCRIPT_NAME}checkupdate" ]
 		then
 			Update_Check
-		elif [ "$2" = "start" ] && [ "$3" = "${SCRIPT_NAME}doupdate" ]
+		elif [ "$3" = "${SCRIPT_NAME}doupdate" ]
 		then
 			Update_Version force unattended
+		elif echo "$3" | grep -qE "^${SCRIPT_NAME}RotateLog_.*"
+		then
+			logFileName="$(echo "$3" | cut -d'_' -f2-)"
+			if _AcquireFLock_ nonblock
+			then
+				_Run_RotateLogFile_ "$logFileName"
+				_ReleaseFLock_
+			else
+				echo "var logRotateStatus = 'ERROR';" > "$logRotateStatusJS"
+				echo "ERROR: Unable to acquire lock to run logrotate." > "$logRotateStatusT"
+			fi
+		elif echo "$3" | grep -qE "^${SCRIPT_NAME}ClearLog_.*"
+		then
+			logFileName="$(echo "$3" | cut -d'_' -f2-)"
+			if _AcquireFLock_ nonblock
+			then
+				_Run_ClearLogFile_ "$logFileName"
+				_ReleaseFLock_
+			else
+				echo "var logRotateStatus = 'ERROR';" > "$logRotateStatusJS"
+				echo "ERROR: Unable to acquire lock to run logrotate." > "$logRotateStatusT"
+			fi
+		elif echo "$3" | grep -qE "^${SCRIPT_NAME}LogFileInfoList"
+		then
+			Create_Symlinks
 		fi
 		exit 0
 	;;
@@ -1214,7 +1875,7 @@ case "$1" in
 		exit 0
 	;;
 	setversion)
-		sed -i '/\/dev\/null/d' "$SCRIPT_DIR/.logs_user"
+		sed -i '/\/dev\/null/d' "$userCheckLogList"
 		Create_Dirs
 		Create_Symlinks
 		Auto_Startup create 2>/dev/null
@@ -1225,7 +1886,7 @@ case "$1" in
 		exit 0
 	;;
 	postupdate)
-		sed -i '/\/dev\/null/d' "$SCRIPT_DIR/.logs_user"
+		sed -i '/\/dev\/null/d' "$userCheckLogList"
 		Create_Dirs
 		Create_Symlinks
 		Auto_Startup create 2>/dev/null
