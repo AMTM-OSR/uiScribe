@@ -31,7 +31,7 @@
 readonly SCRIPT_NAME="uiScribe"
 readonly SCRIPT_VERSION="v1.4.10"
 readonly SCRIPT_VERSTAG="25122122"
-SCRIPT_BRANCH="develop"
+SCRIPT_BRANCH="master"
 SCRIPT_REPO="https://raw.githubusercontent.com/AMTM-OSR/$SCRIPT_NAME/$SCRIPT_BRANCH"
 readonly SCRIPT_DIR="/jffs/addons/${SCRIPT_NAME}.d"
 readonly SCRIPT_PAGE_DIR="$(readlink -f /www/user)"
