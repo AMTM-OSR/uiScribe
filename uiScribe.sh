@@ -13,7 +13,7 @@
 ##  Forked from https://github.com/jackyaz/uiScribe   ##
 ##                                                    ##
 ########################################################
-# Last Modified: 2025-Dec-21
+# Last Modified: 2026-Jan-05
 #-------------------------------------------------------
 
 ###########        Shellcheck directives      ##########
@@ -29,8 +29,8 @@
 
 ### Start of script variables ###
 readonly SCRIPT_NAME="uiScribe"
-readonly SCRIPT_VERSION="v1.4.10"
-readonly SCRIPT_VERSTAG="25122122"
+readonly SCRIPT_VERSION="v1.4.11"
+readonly SCRIPT_VERSTAG="26010522"
 SCRIPT_BRANCH="develop"
 SCRIPT_REPO="https://raw.githubusercontent.com/AMTM-OSR/$SCRIPT_NAME/$SCRIPT_BRANCH"
 readonly SCRIPT_DIR="/jffs/addons/${SCRIPT_NAME}.d"
@@ -623,61 +623,58 @@ Logs_FromSettings()
 }
 
 ##----------------------------------------##
-## Modified by Martinski W. [2025-Jun-18] ##
+## Modified by Martinski W. [2026-Jan-05] ##
 ##----------------------------------------##
 Generate_Log_List()
 {
-	ScriptHeader
-	goback=false
-	printf " Retrieving list of log files...\n\n"
-	logCount="$(wc -l < "$userCheckLogList")"
-	COUNTER=1
-	until [ "$COUNTER" -gt "$logCount" ]
-	do
-		logfile="$(sed "$COUNTER!d" "$userCheckLogList" | awk '{$1=$1};1')"
-		printf "%3d)  %s\n" "$COUNTER" "$logfile"
-		COUNTER="$((COUNTER + 1))"
-	done
-	printf "\n  e)  Go back\n"
+	local logCount  logFileNum  logLineStr
+	printf "\nRetrieving list of log files...\n\n"
+
+	_GenerateLogFileList_()
+	{
+		logCount="$(wc -l < "$userCheckLogList")"
+		COUNTER=1
+		until [ "$COUNTER" -gt "$logCount" ]
+		do
+			logFile="$(sed "$COUNTER!d" "$userCheckLogList" | awk '{$1=$1};1')"
+			printf " ${GRNct}%2d${CLRct})  %s\n" "$COUNTER" "$logFile"
+			COUNTER="$((COUNTER + 1))"
+		done
+		printf "\n  ${GRNct}e${CLRct})  Go back\n"
+	}
 
 	while true
 	do
-		printf "\n ${BOLD}Please select a log to toggle inclusion in %s [1-%s]:${CLEARFORMAT}  " "$SCRIPT_NAME" "$logCount"
-		read -r logNum
+		ScriptHeader
+		_GenerateLogFileList_
+		printf "\n ${BOLD}Select a log file to toggle inclusion in %s [${GRNct}1-%d${CLRct}]:${CLRct}  " "$SCRIPT_NAME" "$logCount"
+		read -r logFileNum
 
-		if [ "$logNum" = "e" ]
+		if [ "$logFileNum" = "e" ]
 		then
-			goback=true
 			break
-		elif ! Validate_Number "$logNum"
+		elif ! Validate_Number "$logFileNum"
 		then
-			printf "\n${ERR}Please enter a valid number [1-%s]${CLEARFORMAT}\n" "$logCount"
+			printf "\n${ERR}Please enter a valid number [1-%d]${CLRct}\n" "$logCount"
 			PressEnter
-			break
 		else
-			if [ "$logNum" -lt 1 ] || [ "$logNum" -gt "$logCount" ]
+			if [ "$logFileNum" -lt 1 ] || [ "$logFileNum" -gt "$logCount" ]
 			then
-				printf "\n${ERR}Please enter a number between 1 and %s${CLEARFORMAT}\n" "$logCount"
+				printf "\n${ERR}Please enter a number between 1 and %d${CLRct}\n" "$logCount"
 				PressEnter
-				break
 			else
-				logLine="$(sed "$logNum!d" "$userCheckLogList" | awk '{$1=$1};1')"
-				if echo "$logLine" | grep -q "#excluded#"
+				logLineStr="$(sed "$logFileNum!d" "$userCheckLogList" | awk '{$1=$1};1')"
+				if echo "$logLineStr" | grep -q "#excluded#"
 				then
-					sed -i "$logNum"'s/ #excluded#//' "$userCheckLogList"
+					sed -i "$logFileNum"'s/ #excluded#//' "$userCheckLogList"
 				else
-					sed -i "$logNum"'s/$/ #excluded#/' "$userCheckLogList"
+					sed -i "$logFileNum"'s/$/ #excluded#/' "$userCheckLogList"
 				fi
 				sed -i 's/ *$//' "$userCheckLogList"
 				printf "\n"
-				break
 			fi
 		fi
 	done
-
-	if [ "$goback" != "true" ]; then
-		Generate_Log_List
-	fi
 }
 
 ##----------------------------------------##
@@ -1444,22 +1441,22 @@ ScriptHeader()
 }
 
 ##----------------------------------------##
-## Modified by Martinski W. [2025-Jun-18] ##
+## Modified by Martinski W. [2026-Jan-05] ##
 ##----------------------------------------##
 MainMenu()
 {
 	Create_Dirs
 	Create_Symlinks
-	printf " WebUI for %s is available at:\n ${SETTING}%s${CLEARFORMAT}\n\n" "$SCRIPT_NAME" "$(Get_WebUI_URL)"
+	printf " WebUI for %s is available at:\n ${SETTING}%s${CLRct}\n\n" "$SCRIPT_NAME" "$(Get_WebUI_URL)"
 
-	printf "  1.   Customise list of logs displayed by %s\n\n" "$SCRIPT_NAME"
-	printf " rf.   Clear user preferences for displayed logs\n\n"
-	printf "  u.   Check for updates\n"
-	printf " uf.   Force update %s with latest version\n\n" "$SCRIPT_NAME"
-	printf "  e.   Exit %s\n\n" "$SCRIPT_NAME"
-	printf "  z.   Uninstall %s\n" "$SCRIPT_NAME"
+	printf "   ${GRNct}1${CLRct}. Customise list of logs displayed by %s\n\n" "$SCRIPT_NAME"
+	printf "  ${GRNct}rf${CLRct}. Clear user preferences for displayed logs\n\n"
+	printf "   ${GRNct}u${CLRct}. Check for updates\n"
+	printf "  ${GRNct}uf${CLRct}. Force update %s with latest version\n\n" "$SCRIPT_NAME"
+	printf "   ${GRNct}e${CLRct}. Exit %s\n\n" "$SCRIPT_NAME"
+	printf "   ${GRNct}z${CLRct}. Uninstall %s\n" "$SCRIPT_NAME"
 	printf "\n"
-	printf "${BOLD}########################################################${CLEARFORMAT}\n"
+	printf "${BOLD}########################################################${CLRct}\n"
 	printf "\n"
 
 	while true
@@ -1473,8 +1470,9 @@ MainMenu()
 					Generate_Log_List
 					printf "\n"
 					Clear_Lock
+				else
+					PressEnter
 				fi
-				PressEnter
 				break
 			;;
 			rf)
@@ -1509,13 +1507,13 @@ MainMenu()
 			;;
 			e)
 				ScriptHeader
-				printf "\n${BOLD}Thanks for using %s!${CLEARFORMAT}\n\n\n" "$SCRIPT_NAME"
+				printf "\n${BOLD}Thanks for using %s!${CLRct}\n\n\n" "$SCRIPT_NAME"
 				exit 0
 			;;
 			z)
 				while true
 				do
-					printf "\n${BOLD}Are you sure you want to uninstall %s? (y/n)${CLEARFORMAT}  " "$SCRIPT_NAME"
+					printf "\n${BOLD}Are you sure you want to uninstall %s? (y/n)${CLRct}  " "$SCRIPT_NAME"
 					read -r confirm
 					case "$confirm" in
 						y|Y)
@@ -1531,7 +1529,7 @@ MainMenu()
 			;;
 			*)
 				[ -n "$menuOption" ] && \
-				printf "\n${ERR}INVALID input [$menuOption]${CLEARFORMAT}"
+				printf "\n${ERR}INVALID input [$menuOption]${CLRct}"
 				printf "\nPlease choose a valid option.\n\n"
 				PressEnter
 				break
@@ -1791,7 +1789,7 @@ else SCRIPT_VERS_INFO="[$versionDev_TAG]"
 fi
 
 ##----------------------------------------##
-## Modified by Martinski W. [2025-Dec-13] ##
+## Modified by Martinski W. [2026-Jan-05] ##
 ##----------------------------------------##
 if [ $# -eq 0 ] || [ -z "$1" ]
 then
@@ -1801,6 +1799,15 @@ then
 	then
 		sed -i '/\/dev\/null/d' "$userCheckLogList"
 	fi
+	if ! Check_Requirements
+	then
+		Print_Output false "Requirements for $SCRIPT_NAME not met, please see above for the reason(s)" "$CRIT"
+		PressEnter
+		printf "\n${ERR}Exiting...${CLRct}\n\n"
+		Clear_Lock
+		exit 1
+	fi
+
 	Create_Dirs
 	Create_Symlinks
 	Auto_Startup create 2>/dev/null
