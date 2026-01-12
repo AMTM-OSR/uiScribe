@@ -13,7 +13,7 @@
 ##  Forked from https://github.com/jackyaz/uiScribe   ##
 ##                                                    ##
 ########################################################
-# Last Modified: 2026-Jan-10
+# Last Modified: 2026-Jan-11
 #-------------------------------------------------------
 
 ###########        Shellcheck directives      ##########
@@ -30,7 +30,7 @@
 ### Start of script variables ###
 readonly SCRIPT_NAME="uiScribe"
 readonly SCRIPT_VERSION="v1.4.11"
-readonly SCRIPT_VERSTAG="26011020"
+readonly SCRIPT_VERSTAG="26011120"
 SCRIPT_BRANCH="develop"
 SCRIPT_REPO="https://raw.githubusercontent.com/AMTM-OSR/$SCRIPT_NAME/$SCRIPT_BRANCH"
 readonly SCRIPT_DIR="/jffs/addons/${SCRIPT_NAME}.d"
@@ -647,7 +647,7 @@ Generate_Log_List()
 	do
 		ScriptHeader
 		_GenerateLogFileList_
-		printf "\n ${BOLD}Select a log file to toggle inclusion in %s [${GRNct}1-%d${CLRct}]:${CLRct}  " "$SCRIPT_NAME" "$logCount"
+		printf "\n ${BOLD}Select a log file to toggle inclusion in WebUI [${GRNct}1-%d${CLRct}]:${CLRct}  " "$logCount"
 		read -r logFileNum
 
 		if [ "$logFileNum" = "e" ]
