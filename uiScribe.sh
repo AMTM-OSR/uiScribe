@@ -13,7 +13,7 @@
 ##  Forked from https://github.com/jackyaz/uiScribe   ##
 ##                                                    ##
 ########################################################
-# Last Modified: 2026-Feb-14
+# Last Modified: 2026-Feb-15
 #-------------------------------------------------------
 
 ###########        Shellcheck directives      ##########
@@ -30,7 +30,7 @@
 ### Start of script variables ###
 readonly SCRIPT_NAME="uiScribe"
 readonly SCRIPT_VERSION="v1.4.12"
-readonly SCRIPT_VERSTAG="26021400"
+readonly SCRIPT_VERSTAG="26021523"
 SCRIPT_BRANCH="develop"
 SCRIPT_REPO="https://raw.githubusercontent.com/AMTM-OSR/$SCRIPT_NAME/$SCRIPT_BRANCH"
 readonly SCRIPT_DIR="/jffs/addons/${SCRIPT_NAME}.d"
@@ -424,7 +424,7 @@ Create_Dirs()
 }
 
 ##----------------------------------------##
-## Modified by Martinski W. [2026-Feb-13] ##
+## Modified by Martinski W. [2026-Feb-15] ##
 ##----------------------------------------##
 _Generate_ListOf_Filtered_LogFiles_()
 {
@@ -438,13 +438,13 @@ _Generate_ListOf_Filtered_LogFiles_()
     then
         while read -r theLINE && [ -n "$theLINE" ]
         do
-            logFilePath="$(echo "$theLINE" | sed -e 's/.*[{ ]\?file("//;s/".*$//')"
+            logFilePath="$(echo "$theLINE" | sed -e "s/.*[{[:blank:]]\?file([\"']//;s/[\"'].*$//")"
             if grep -qE "^${logFilePath}$" "$tmpFilterList"
             then continue  #Avoid duplicates#
             fi
             echo "$logFilePath" >> "$tmpFilterList"
         done <<EOT
-$(grep -A1 "^destination" "$tmpSysLogList" | grep -E '.*[{ ]file\("/opt/var/' | grep -v '.*/log/messages')
+$(grep -A1 "^destination" "$tmpSysLogList" | grep -E "[{[:blank:]]file\([\"']/opt/var/" | grep -v '.*/log/messages')
 EOT
     fi
 
