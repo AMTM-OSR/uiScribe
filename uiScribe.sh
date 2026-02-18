@@ -13,7 +13,7 @@
 ##  Forked from https://github.com/jackyaz/uiScribe   ##
 ##                                                    ##
 ########################################################
-# Last Modified: 2026-Feb-15
+# Last Modified: 2026-Feb-18
 #-------------------------------------------------------
 
 ###########        Shellcheck directives      ##########
@@ -29,8 +29,8 @@
 
 ### Start of script variables ###
 readonly SCRIPT_NAME="uiScribe"
-readonly SCRIPT_VERSION="v1.4.12"
-readonly SCRIPT_VERSTAG="26021523"
+readonly SCRIPT_VERSION="v1.4.13"
+readonly SCRIPT_VERSTAG="26021800"
 SCRIPT_BRANCH="develop"
 SCRIPT_REPO="https://raw.githubusercontent.com/AMTM-OSR/$SCRIPT_NAME/$SCRIPT_BRANCH"
 readonly SCRIPT_DIR="/jffs/addons/${SCRIPT_NAME}.d"
@@ -49,6 +49,9 @@ readonly webPageLineRegExp="(Scribe|uiScribe|uiscribe_version_server)"
 readonly branchxStr_TAG="[Branch: $SCRIPT_BRANCH]"
 readonly versionDev_TAG="${SCRIPT_VERSION}_${SCRIPT_VERSTAG}"
 readonly versionMod_TAG="$SCRIPT_VERSION on $ROUTER_MODEL"
+
+# To support automatic script updates from AMTM #
+doScriptUpdateFromAMTM=true
 
 ##-------------------------------------##
 ## Added by Martinski W. [2025-Nov-28] ##
@@ -278,9 +281,11 @@ Update_Version()
 		localver="$(echo "$updatecheckresult" | cut -f2 -d',')"
 		serverver="$(echo "$updatecheckresult" | cut -f3 -d',')"
 
-		if [ "$isupdate" = "version" ]; then
+		if [ "$isupdate" = "version" ]
+		then
 			Print_Output true "New version of $SCRIPT_NAME available - $serverver" "$PASS"
-		elif [ "$isupdate" = "md5" ]; then
+		elif [ "$isupdate" = "md5" ]
+		then
 			Print_Output true "MD5 hash of $SCRIPT_NAME does not match - hotfix available - $serverver" "$PASS"
 		fi
 
@@ -337,6 +342,23 @@ Update_Version()
 		fi
 		exit 0
 	fi
+}
+
+##-------------------------------------##
+## Added by Martinski W. [2026-Feb-18] ##
+##-------------------------------------##
+ScriptUpdateFromAMTM()
+{
+    if ! "$doScriptUpdateFromAMTM"
+    then
+        printf "Automatic script updates via AMTM are currently disabled.\n\n"
+        return 1
+    fi
+    if [ $# -gt 0 ] && [ "$1" = "check" ]
+    then return 0
+    fi
+    Update_Version force unattended
+    return "$?"
 }
 
 ##----------------------------------------##
@@ -428,8 +450,12 @@ Create_Dirs()
 ##----------------------------------------##
 _Generate_ListOf_Filtered_LogFiles_()
 {
+    local logDirPath  logFilePath  setDirPerms=false
     local tmpSysLogList="${HOMEdir}/${SCRIPT_NAME}_tempSysLogList_$$.txt"
     local tmpFilterList="${HOMEdir}/${SCRIPT_NAME}_tempFltLogList_$$.txt"
+    if [ $# -gt 0 ] && [ "$1" = "true" ]
+    then setDirPerms=true
+    fi
 
     printf '' > "$tmpFilterList"
     [ ! -f "$filteredLogList" ] && printf '' > "$filteredLogList"
@@ -443,8 +469,15 @@ _Generate_ListOf_Filtered_LogFiles_()
             then continue  #Avoid duplicates#
             fi
             echo "$logFilePath" >> "$tmpFilterList"
+            if "$setDirPerms"
+            then
+                logDirPath="$(dirname "$logFilePath")"
+                if echo "$logDirPath" | grep -qE "^${optVarLogDir}/.+"
+                then chmod 0755 "$logDirPath" 2>/dev/null
+                fi
+            fi
         done <<EOT
-$(grep -A1 "^destination" "$tmpSysLogList" | grep -E "[{[:blank:]]file\([\"']/opt/var/" | grep -v '.*/log/messages')
+$(grep -A1 "^destination" "$tmpSysLogList" | grep -E "[{[:blank:]]file\([\"']/opt/var/log/" | grep -v '.*/messages')
 EOT
     fi
 
@@ -841,14 +874,43 @@ _GetFileSize_()
 }
 
 ##-------------------------------------##
+## Added by Martinski W. [2026-Feb-18] ##
+##-------------------------------------##
+_GetFilteredLogFilePath_()
+{
+    if [ $# -eq 0 ] || [ -z "$1" ] || \
+       { [ ! -s "$filteredLogList" ] && \
+         [ ! -s "${optVarLogDir}/$1" ] ; }
+    then
+        echo ; return 1
+    fi
+    local logFileName  logFilePath  theLogFilePath=""
+
+    while IFS='' read -r logFilePath || [ -n "$logFilePath" ]
+    do
+        logFileName=${logFilePath##*/}
+        if [ "$logFileName" = "$1" ]
+        then
+            theLogFilePath="$logFilePath"
+            break
+        fi
+    done < "$filteredLogList"
+
+    if [ -z "$theLogFilePath" ]
+    then echo ; return 1
+    fi
+    chmod 0755 "$(dirname "$theLogFilePath")" 2>/dev/null
+    echo "$theLogFilePath"
+    return 0
+}
+
+##-------------------------------------##
 ## Added by Martinski W. [2025-Nov-28] ##
 ##-------------------------------------##
 _Get_LogRotate_ConfigFile_()
 {
-    if [ $# -eq 0 ] || [ -z "$1" ] || \
-       [ ! -s "${optVarLogDir}/$1" ]
-    then
-        echo ; return 1
+    if [ $# -eq 0 ] || [ -z "$1" ] || [ ! -s "$1" ]
+    then echo ; return 1
     fi
     local theConfigFile  theConfLogExp  configFileOK
 
@@ -861,7 +923,7 @@ _Get_LogRotate_ConfigFile_()
            ! grep -qE "$logFilesRegExp" "$theConfigFile"
         then continue
         fi
-        if grep -qE "${optVarLogDir}/$1" "$theConfigFile"
+        if grep -qE "$1" "$theConfigFile"
         then
             configFileOK=true ; break
         fi
@@ -941,7 +1003,7 @@ _RotateAllLogFiles_Preamble_()
     local tmpLogRotateAction="${HOMEdir}/${SCRIPT_NAME}_tempLogRotateAction_$$.txt"
 
     doPostRotateCleanup=false
-    _Generate_ListOf_Filtered_LogFiles_
+    _Generate_ListOf_Filtered_LogFiles_ true
     _Update_ListOf_UserCheck_LogFiles_
     _Generate_ListOf_LogFiles_Without_Configs_
 
@@ -995,13 +1057,15 @@ _Run_RotateLogFile_()
         return 1
     fi
 
+    local logFilePath=""
     local doPostRotateCleanup=false
     local logRotateConf="$logRotateTopConf"
 
     case "$1" in
         ALL) _RotateAllLogFiles_Preamble_
              ;;
-          *) logRotateConf="$(_Get_LogRotate_ConfigFile_ "$1")"
+          *) logFilePath="$(_GetFilteredLogFilePath_ "$1")"
+             logRotateConf="$(_Get_LogRotate_ConfigFile_ "$logFilePath")"
              ;;
     esac
 
@@ -1009,9 +1073,9 @@ _Run_RotateLogFile_()
     then
         echo "var logRotateStatus = 'ERROR';" > "$logRotateStatusJS"
         {
-            if [ "$1" != "ALL" ] && [ ! -s "${optVarLogDir}/$1" ]
+            if [ -n "$logFilePath" ] && [ ! -s "$logFilePath" ]
             then
-                echo "Log file [${optVarLogDir}/$1] NOT found or is EMPTY."
+                echo "Log file [$logFilePath] NOT found or is EMPTY."
             fi
             [ -n "$logRotateConf" ] && \
             echo "Check if LogRotate config file [$logRotateConf] exists."
@@ -1092,16 +1156,14 @@ EOF
 ##-------------------------------------##
 _Get_LogRotate_TempConfig_()
 {
-    if [ $# -eq 0 ] || [ -z "$1" ] || \
-       [ ! -s "${optVarLogDir}/$1" ]
-    then
-        echo ; return 1
+    if [ $# -eq 0 ] || [ -z "$1" ] || [ ! -s "$1" ]
+    then echo ; return 1
     fi
-    local logFileName="$1"  configFPath
+    local configFPath  logFileName="${1##*/}"
     configFPath="${optTempDir}/RotateLog_${logFileName%.*}.conf"
     rm -f "$configFPath"
 
-    echo "${optVarLogDir}/$logFileName" > "$configFPath"
+    echo "$1" > "$configFPath"
     _Set_LogRotate_ConfigOptions_ >> "$configFPath"
     chmod 644 "$configFPath"
     echo "$configFPath"
@@ -1142,19 +1204,17 @@ _PrependGlobalDirectives_()
 ##-------------------------------------##
 _Get_LogRotateClear_ConfigFile_()
 {
-    if [ $# -eq 0 ] || [ -z "$1" ] || \
-       [ ! -s "${optVarLogDir}/$1" ]
-    then
-        echo ; return 1
+    if [ $# -eq 0 ] || [ -z "$1" ] || [ ! -s "$1" ]
+    then echo ; return 1
     fi
-    local logFileName="$1"  theConfigFile
-    theConfigFile="${optTempDir}/ClearLog_${logFileName%.*}.conf"
-    rm -f "$theConfigFile"
+    local configFPath  logFileName="${1##*/}"
+    configFPath="${optTempDir}/ClearLog_${logFileName%.*}.conf"
+    rm -f "$configFPath"
 
-    echo "${optVarLogDir}/$logFileName" > "$theConfigFile"
-    _Set_LogRotateClear_ConfigOptions_ >> "$theConfigFile"
-    chmod 644 "$theConfigFile"
-    echo "$theConfigFile"
+    echo "$1" > "$configFPath"
+    _Set_LogRotateClear_ConfigOptions_ >> "$configFPath"
+    chmod 644 "$configFPath"
+    echo "$configFPath"
 }
 
 ##-------------------------------------##
@@ -1220,22 +1280,24 @@ _Run_ClearLogFile_()
         echo "ERROR: LogRotate is NOT available." > "$logClearStatusJS"
         return 1
     fi
-    local logFilePath  logRotateConf=""
+    local logFilePath=""  logRotateConf=""
 
     case "$1" in
         ALL) _Run_ClearAllLogFiles_ ; return "$?"
              ;;
-          *) logRotateConf="$(_Get_LogRotateClear_ConfigFile_ "$1")"
+          *) logFilePath="$(_GetFilteredLogFilePath_ "$1")"
+             logRotateConf="$(_Get_LogRotateClear_ConfigFile_ "$logFilePath")"
              ;;
     esac
 
     if [ -z "$logRotateConf" ] || [ ! -s "$logRotateConf" ]
     then
-        logFilePath="${optVarLogDir}/$1"
         echo "var logClearStatus = 'ERROR';" > "$logClearStatusJS"
         {
-            [ ! -s "$logFilePath" ] && \
-            echo "Log file [$logFilePath] NOT found or is EMPTY."
+            if [ -n "$logFilePath" ] && [ ! -s "$logFilePath" ]
+            then
+                echo "Log file [$logFilePath] NOT found or is EMPTY."
+            fi
             [ -n "$logRotateConf" ] && \
             echo "Check if LogRotate config file [$logRotateConf] exists."
         } > "$logClearStatusT"
@@ -1821,7 +1883,7 @@ then
 fi
 
 ##----------------------------------------##
-## Modified by Martinski W. [2025-Dec-19] ##
+## Modified by Martinski W. [2026-Feb-18] ##
 ##----------------------------------------##
 case "$1" in
 	install)
@@ -1880,6 +1942,11 @@ case "$1" in
 	forceupdate)
 		Update_Version force
 		exit 0
+	;;
+	amtmupdate)
+		shift
+		ScriptUpdateFromAMTM "$@"
+		exit "$?"
 	;;
 	setversion)
 		sed -i '/\/dev\/null/d' "$userCheckLogList"
