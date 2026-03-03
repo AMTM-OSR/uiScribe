@@ -13,7 +13,7 @@
 ##  Forked from https://github.com/jackyaz/uiScribe   ##
 ##                                                    ##
 ########################################################
-# Last Modified: 2026-Feb-21
+# Last Modified: 2026-Mar-02
 #-------------------------------------------------------
 
 ###########        Shellcheck directives      ##########
@@ -30,7 +30,7 @@
 ### Start of script variables ###
 readonly SCRIPT_NAME="uiScribe"
 readonly SCRIPT_VERSION="v1.4.13"
-readonly SCRIPT_VERSTAG="26022123"
+readonly SCRIPT_VERSTAG="26030223"
 SCRIPT_BRANCH="develop"
 SCRIPT_REPO="https://raw.githubusercontent.com/AMTM-OSR/$SCRIPT_NAME/$SCRIPT_BRANCH"
 readonly SCRIPT_DIR="/jffs/addons/${SCRIPT_NAME}.d"
@@ -1675,7 +1675,7 @@ Menu_Install()
 }
 
 ##----------------------------------------##
-## Modified by Martinski W. [2025-Jun-09] ##
+## Modified by Martinski W. [2026-Mar-02] ##
 ##----------------------------------------##
 Menu_Startup()
 {
@@ -1705,7 +1705,9 @@ Menu_Startup()
 	Auto_ServiceEvent create 2>/dev/null
 	Set_Version_Custom_Settings local "$SCRIPT_VERSION"
 	Shortcut_Script create
-	Mount_WebUI
+	if [ $# -eq 0 ] || [ "$1" != "Scribe" ]
+	then Mount_WebUI
+	fi
 	Clear_Lock
 }
 
